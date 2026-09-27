@@ -4,26 +4,23 @@ A customer clicks once. Your webhook arrives twice. Watch what breaks. This is R
 02. The retry becomes a second order.
 The same operation creates two orders and deducts inventory twice. This is a sample incident, but the code is really running. We're showing saved, real execution results.
 
-03. Execution exposes the failure.
+03. Two checks expose the broken retry.
 Two of four checks fail. Repeated deliveries must preserve the original outcome, while different orders must still work. That contract gives the agent a concrete target.
 
-04. River writes the repair.
+04. Recognize the replay before changing inventory.
 River generates this patch. It recognizes an existing operation before changing inventory, and returns its original response. The recorded checkout repair took about fifteen seconds.
 
 05. One order. Four checks pass.
 The model produced code. Execution determined whether it worked. All four checks pass, including distinct operations and delayed retries. The repair and its evidence stay together.
 
-06. Verified work becomes training data.
-Every verified fix becomes a reusable training asset for your engineering team. We built twenty-four eligible examples: five accepted repairs and nineteen generated repairs that passed executable checks. These are variants from six templates. Failures stay out of training.
+06. Only verified repairs train the model.
+River proposes repairs, execution verifies them, and only verified repairs train the model. This is rejection sampling fine tuning. Twenty four generated tasks led to twenty three River requests and nineteen verified repairs. With five accepted repairs, we trained on twenty four examples.
 
 07. A checkpoint you can keep.
 River completed sixteen weight updates and saved this checkpoint. The training snapshot preserves exactly which examples were used. The trained adapter can be downloaded from River Console.
 
-08. Measure the next failure.
-Base, memory, and learned each passed four of four. The inputs match. This small benchmark confirms the full workflow, but shows no accuracy gain yet.
+08. Four held-out failures. Three conditions.
+All three passed our four held out failures. The set is too easy to show a gap, so we are not claiming one.
 
-09. Bring the code you ship.
-For a team's own code, the repository workspace takes a Python file and its regression tests. It runs a disposable copy and keeps the original workspace intact.
-
-10. Your failures become your dataset. Your dataset becomes your model.
+09. Your failures become your dataset. Your dataset becomes your model.
 Teams should keep the intelligence their work creates. UFO has an SDK verified extension; River trains the specialist. Your failures become your dataset. Your dataset becomes your model.

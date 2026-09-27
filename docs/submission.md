@@ -30,7 +30,7 @@ https://github.com/ankitshah009/Reflex_own_intelligence_hack/tree/repair-workben
 
 ### Demo Video URL (loom, vimeo, etc)
 
-[Paste the hosted, viewable demo link after uploading the recording.]
+https://ankitshah009.github.io/Reflex_own_intelligence_hack/
 
 ### Side Quest (if any)
 
@@ -45,7 +45,7 @@ We retain failed attempts, distinguish operator acceptance from machine verifica
 
 River saved `reflex-repair-v3-20260927` after 16 confirmed weight updates on these 24 examples. The completed held-out result is base **4/4**, memory **4/4**, learned **4/4**, with matching memory/learned prompts. All three reached this small benchmark's ceiling; there is no measured accuracy gain. This run used supervised fine-tuning, with no reinforcement-learning steps. Failed earlier attempts and the original evaluation remain saved.
 
-The UFO extension has been verified against its installed SDK; an authenticated live UFO conversation has not been demonstrated. Our ownership path includes the training examples, dataset lineage, and a downloadable River adapter; the adapter still requires compatible base-model weights and compute.
+The longer v4 run completed 48 updates and 122,752 training tokens. A real programmatic UFO SDK tool invocation then used that checkpoint to repair the stock training case, passing 4/4 checks and importing its observable trace. This was a live specialist tool call, not a full UFO chat. The repeated v4 benchmark had one base execution permission error, so it does not establish an accuracy gain. Our ownership path includes the training examples, dataset lineage, and a downloadable River adapter; the adapter still requires compatible base-model weights and compute.
 
 ## Final result line
 
