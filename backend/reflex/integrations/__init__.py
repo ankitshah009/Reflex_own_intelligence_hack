@@ -1,0 +1,1 @@
+"""Verified sponsor integration boundaries."""

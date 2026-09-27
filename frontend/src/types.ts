@@ -1,0 +1,14 @@
+export type Decision = 'APPROVE' | 'REJECT';
+export type Condition = 'base' | 'memory' | 'learned';
+export type Screen = 'review' | 'experience' | 'learn' | 'replay';
+export type Issue = { tag: string; severity?: string; message: string; title?: string; detail?: string };
+export type Review = { decision: Decision; summary?: string; issues?: Issue[] };
+export type Trajectory = { type: string; message: string; timestamp?: string };
+export type Experience = { id: string; title: string; diff: string; repo?: string; context?: string | Record<string, unknown>; agent_review?: Review | null; human_feedback?: { decision: Decision; reason: string; issues?: string[]; issue_tags?: string[]; approved?: boolean } | null; trajectory?: Trajectory[]; source?: string; created_at?: string; eligible?: boolean; split?: string };
+export type Sample = { id: string; title: string; repo?: string; diff: string; context?: string | Record<string, unknown>; split?: string };
+export type Checkpoint = { id: string; name: string; dataset_hash?: string; checkpoint?: string; model?: string; created_at?: string; metrics?: Record<string, unknown> };
+export type EvaluationResult = { title?: string; sample_id?: string; case_id?: string; score?: { correct_decision?: boolean }; prompt_hash?: string; decision?: string; expected?: string; correct?: boolean; error?: string; review?: Review };
+export type Evaluation = { id: string; checkpoint: string; conditions: { name: Condition; correct: number; total: number; accuracy: number; results?: EvaluationResult[] }[]; prompt_hash?: string; matched_prompts?: boolean; status?: string; error?: string; case_count?: number; created_at?: string };
+export type Job = { id: string; status: string; type?: string; kind?: string; message?: string; result?: unknown; error?: string | { message?: string }; events?: Trajectory[] };
+export type State = { experiences: Experience[]; samples: Sample[]; checkpoints: Checkpoint[]; evaluations: Evaluation[]; jobs: Job[]; status: { river?: { configured: boolean; verified?: boolean; model?: string }; ufo?: { configured: boolean; mode?: string }; training_methods?: string[]; [key: string]: unknown }; stats: { experiences: number; corrections: number; eligible: number } };
+export const EMPTY_STATE: State = { experiences: [], samples: [], checkpoints: [], evaluations: [], jobs: [], status: {}, stats: { experiences: 0, corrections: 0, eligible: 0 } };

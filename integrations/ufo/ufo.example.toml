@@ -1,0 +1,25 @@
+# Run ufoctl from its dedicated runtime directory. Relative paths stay there.
+[database]
+url = "sqlite+aiosqlite:///ufo.db"
+owner_url = "sqlite+aiosqlite:///ufo.db"
+
+[blob]
+backend = "filesystem"
+root = "./blobs"
+
+[pack]
+name = "reflex-demo"
+
+[serve]
+host = "127.0.0.1"
+port = 8710
+
+[connect]
+public_base_url = "http://localhost:8710"
+
+[sandbox]
+workspace_root = "./workspaces"
+ingress_public_url = "http://localhost:8100"
+
+[flags]
+backend = "open"
