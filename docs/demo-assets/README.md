@@ -1,43 +1,45 @@
 # Reflex demo video
 
-**Ready:** 103.919333 seconds, 1920 × 1080, H.264/AAC, 3,436,626 bytes. Full decoding completed successfully. Narration peaks at −1.6 dB.
+**Ready:** 104.252344 seconds, 1920 × 1080, H.264/AAC, 3,526,332 bytes. Full decoding completed successfully. macOS Samantha narration, mean −16.3 dB and peak −1.7 dB.
 
-- `reflex-demo-narrated.mp4`: 1080p edited walkthrough, with local macOS Samantha narration.
-- `index.html`: local video player with poster and transcript links; this file is not itself a hosted URL.
-- `reflex-demo-clean.mp4`: the same picture without audio, for a founder voice-over or a live presentation.
-- `provenance.json`: the exact narration, scene timings, and genuine screenshot sources.
-- `narration.txt`: the spoken script.
+- `reflex-demo-narrated.mp4`: final narrated video.
+- `reflex-demo-clean.mp4`: the same picture without audio.
+- `narration.txt`: complete spoken script.
+- `provenance.json`: scene timings from encoded video frames, source evidence hashes, and receipt fields.
+- `index.html`: local video player. A local path is not a hosted submission URL.
 
-This is an edited walkthrough of actual product captures, not a continuous live screen recording. It shows the original checkout handler, its saved River repair, executed behavioral checks, the verified dataset, and the completed `reflex-repair-v3-20260927` checkpoint.
+## What the recording shows
 
-The measured held-out result is **base 4/4, memory 4/4, learned 4/4**. Memory and learned inputs matched. This small benchmark did not measure an accuracy gain. The checkpoint was trained with 16 confirmed updates on 24 eligible examples; no reinforcement-learning update is claimed.
+This is an **edited walkthrough**, using genuine app screenshots and faithful compositions of saved provider receipts. It is not a continuous live screen recording.
 
-The repository segment was removed from this final cut. The UFO extension was SDK verified; no authenticated live UFO conversation is shown.
+The original checkout handler creates two orders and passes 2/4 checks. Its saved River repair creates one order and passes 4/4. Generation uses rejection-sampling fine-tuning: **24 generated tasks → 23 River requests → 19 verified repairs**, plus five accepted repairs, produce 24 eligible examples.
 
-## Submission
+The latest checkpoint is **reflex-repair-v4-48steps-20260927**: **48 confirmed weight updates, 24 examples, 122,752 training tokens**, SFT only. The checkpoint slide uses the v4 receipt, not an older screenshot.
 
-Upload `reflex-demo-narrated.mp4` to the chosen video host and use its playable URL in the submission form. A local path is not a public video URL. No upload or external posting is performed by the render script.
+The short held-out comparison is explicitly the **earlier v3 experiment**: base 4/4, memory 4/4, learned 4/4. No learning advantage is claimed. The separate v4 repeat encountered a base execution infrastructure error; it is not presented as a model improvement.
 
-## Rebuild
+## UFO climax
 
-From the repository root, with the installed gstack browser available:
+The dedicated UFO sequence occupies **81.933–96.533 seconds** in the video. It shows a recorded **programmatic UFO SDK invocation** of `repair_code_with_reflex`, using the v4 River checkpoint on training case `repair-stock-replay`.
+
+- Original checks: 2/4.
+- Specialist repair: 4/4, with the OS sandbox enforced.
+- Recorded timestamps: 23:38:53.251702 → 23:38:58.944854 UTC.
+- Recorded elapsed time: 5.693152 seconds, displayed as 5.7 seconds.
+- Source: `docs/evidence/ufo-live-v4.json`.
+
+The sequential highlights animate the **saved receipt** for presentation. They are not an attempt to reproduce the original stage timing. The sequence does not claim a full agent conversation or held-out improvement. The ending states that UFO used the trained specialist.
+
+## Sources
+
+- `docs/evidence/ufo-live-v4.json`
+- `docs/evidence/reflex-v4-training.json`
+- `docs/evidence/reflex-v3.json`
+
+## Rebuild locally
 
 ```sh
 .venv/bin/python .cache/demo/build_demo.py
 ```
 
-The script reads `.cache/demo/manifest.json`, renders local HTML composition cards around unaltered screenshots, generates speech locally, and encodes H.264/AAC with FFmpeg. It does not call the app API or River.
-
-## Capture verification
-
-Wait for the execution status indicator before capturing a local reproduction; a click returns before the result settles. Select **Original** explicitly for the broken baseline, because **Reproduce issue** runs the currently selected preview source.
-
-The current UI was also exercised during background training: original handler 2/4, two orders, 8 units, $144; saved River patch 4/4, one order, 10 units, $120. Additional paid repair requests remained disabled during the active training job.
-
-## Final cut
-
-Nine scenes, ending on ownership. The evaluation occupies approximately seven seconds: base, memory, and learned each pass four excluded cases; the set is too easy to establish a gap, so none is claimed.
-
-Data generation is described as rejection-sampling fine-tuning: River proposes repairs, execution verifies them, and verified repairs train the model. There were **24 generated tasks, 23 River requests, and 19 verified repairs**, plus five accepted repairs, for 24 eligible examples. The video retains the actual v3 experiment: 16 updates, 24 examples, and 41,153 training tokens.
-
-Projector readability was improved with large factual annotations and a faithful excerpt of the saved repair. The underlying app screenshots were not modified.
+The render script uses the installed gstack browser, local macOS speech, and FFmpeg. It performs no River calls, app API calls, uploads, or Git operations.
