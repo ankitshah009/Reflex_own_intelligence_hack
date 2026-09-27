@@ -1,6 +1,6 @@
-export async function api<T>(path: string, options?: RequestInit): Promise<T> {
+export async function api<T>(path: string, options?: RequestInit, timeoutMs = 20000): Promise<T> {
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), 20000);
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`/api${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers }, signal: controller.signal });
     if (!response.ok) {
@@ -15,4 +15,4 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
     throw error;
   } finally { window.clearTimeout(timer); }
 }
-export const post = <T>(path: string, body: unknown) => api<T>(path, { method: 'POST', body: JSON.stringify(body) });
+export const post = <T>(path: string, body: unknown, timeoutMs?: number) => api<T>(path, { method: 'POST', body: JSON.stringify(body) }, timeoutMs);

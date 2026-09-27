@@ -19,6 +19,7 @@ from pathlib import Path
 import re
 import threading
 from typing import Any
+from uuid import NAMESPACE_URL, uuid5
 
 
 class ProviderNotConfigured(RuntimeError):
@@ -314,7 +315,8 @@ class RiverProvider:
         self.timeout = _number("RIVER_TIMEOUT_SECONDS", 180, 1, 1800)
         self.training_timeout = _number("RIVER_TRAIN_TIMEOUT_SECONDS", 600, 1, 3600)
         self.max_tokens = _number("RIVER_MAX_TOKENS", 2048, 32, 16384, integer=True)
-        self.steps = _number("RIVER_TRAIN_MAX_STEPS", 4, 1, 20, integer=True)
+        self.steps = _number("RIVER_TRAIN_MAX_STEPS", 16, 1, 64, integer=True)
+        self.batch_size = _number("RIVER_TRAIN_BATCH_SIZE", 2, 1, 8, integer=True)
         self.learning_rate = _number("RIVER_LEARNING_RATE", 2e-4, 1e-7, 1e-2)
         self.lora_rank = _number("RIVER_LORA_RANK", 16, 1, 32, integer=True)
         self.max_example_tokens = _number(
@@ -351,14 +353,59 @@ class RiverProvider:
         )
 
     @staticmethod
-    def _failure(operation: str, error: Exception) -> RiverOperationError:
-        # Vendor errors may embed request content or credentials. Return only a
-        # safe class name; the application can expose the operation and remedy.
+    def _failure(
+        operation: str, error: Exception, context: dict[str, Any] | None = None
+    ) -> RiverOperationError:
+        # Messages and details may contain secrets. Retain structured status only.
         kind = type(error).__name__
-        return RiverOperationError(
-            f"River {operation} failed ({kind}). Check credentials, model access, capacity and run status in the River Console. "
+        allowed_statuses = {
+            "CANCELLED",
+            "UNKNOWN",
+            "INVALID_ARGUMENT",
+            "DEADLINE_EXCEEDED",
+            "NOT_FOUND",
+            "ALREADY_EXISTS",
+            "PERMISSION_DENIED",
+            "RESOURCE_EXHAUSTED",
+            "FAILED_PRECONDITION",
+            "ABORTED",
+            "OUT_OF_RANGE",
+            "UNIMPLEMENTED",
+            "INTERNAL",
+            "UNAVAILABLE",
+            "DATA_LOSS",
+            "UNAUTHENTICATED",
+        }
+        diagnostics: dict[str, Any] = {"operation": operation, "error_type": kind}
+        original = getattr(error, "original_error", None) or error.__cause__
+        if original is not None:
+            diagnostics["cause_type"] = type(original).__name__
+        status = getattr(error, "status_code", None)
+        if isinstance(status, str) and status in allowed_statuses:
+            diagnostics["grpc_status"] = status
+        for key, value in (context or {}).items():
+            if key in {
+                "stage",
+                "session_id",
+                "model_id",
+                "training_run_id",
+                "request_id",
+                "confirmed_steps",
+                "step",
+            } and isinstance(value, (str, int)):
+                if isinstance(value, int) or re.fullmatch(r"[A-Za-z0-9:._/-]{1,200}", value):
+                    diagnostics[key] = value
+        request_id = getattr(error, "request_id", None)
+        if isinstance(request_id, str) and re.fullmatch(r"[A-Za-z0-9:._/-]{1,200}", request_id):
+            diagnostics["request_id"] = request_id
+        stage = diagnostics.get("stage", operation)
+        status_label = diagnostics.get("grpc_status", "not_reported")
+        failure = RiverOperationError(
+            f"River {operation} failed at {stage} ({kind}; gRPC status: {status_label}). Check credentials, training model access, capacity and run status in the River Console. "
             "Completion is unconfirmed; inspect the run before retrying a training operation."
         )
+        failure.diagnostics = diagnostics
+        return failure
 
     async def review(self, prompt: str, checkpoint: str | None = None) -> dict[str, Any]:
         return await self._generate(prompt, checkpoint, parser=parse_review, operation="review")
@@ -594,7 +641,7 @@ class RiverProvider:
                 beta2=0.95,
                 grad_clip_norm=1.0,
                 expected_policy_id=policy.id,
-                idempotency_key=f"{name}-rl-{attempt + 1}",
+                idempotency_key=str(uuid5(NAMESPACE_URL, f"reflex:{model.model_id}:rl:{attempt + 1}")),
                 timeout=self.training_timeout,
             )
             committed = optimized.policy_version
@@ -638,6 +685,12 @@ class RiverProvider:
             )
         if not 1 <= len(examples) <= 32:
             raise ValueError("SFT requires between 1 and 32 reviewed examples.")
+        batches_per_pass = math.ceil(len(examples) / self.batch_size)
+        if self.steps < batches_per_pass:
+            raise ValueError(
+                f"RIVER_TRAIN_MAX_STEPS={self.steps} cannot cover all {len(examples)} examples "
+                f"with RIVER_TRAIN_BATCH_SIZE={self.batch_size}. Set at least {batches_per_pass} steps."
+            )
         task_kinds: set[str] = set()
         validated_examples = []
         for example in examples:
@@ -686,6 +739,7 @@ class RiverProvider:
                     ) from None
 
         def run() -> dict[str, Any]:
+            run_context: dict[str, Any] = {"stage": "tokenizer", "confirmed_steps": 0}
             try:
                 emit(
                     {
@@ -710,10 +764,21 @@ class RiverProvider:
                     for index, item in enumerate(examples)
                 ]
                 token_count = sum(len(item["input_ids"]) for item in batch)
-                if token_count > self.max_batch_tokens:
-                    raise ValueError(
-                        f"SFT batch has {token_count} tokens, exceeding RIVER_MAX_BATCH_TOKENS={self.max_batch_tokens}. Reduce repository context or select fewer examples."
-                    )
+                batch_indices = [
+                    list(range(start, min(start + self.batch_size, len(batch))))
+                    for start in range(0, len(batch), self.batch_size)
+                ]
+                batch_token_counts = [
+                    sum(len(batch[index]["input_ids"]) for index in indices)
+                    for indices in batch_indices
+                ]
+                for index, count in enumerate(batch_token_counts):
+                    if count > self.max_batch_tokens:
+                        raise ValueError(
+                            f"SFT batch {index + 1} has {count} tokens, exceeding "
+                            f"RIVER_MAX_BATCH_TOKENS={self.max_batch_tokens}. Reduce repository "
+                            "context or RIVER_TRAIN_BATCH_SIZE."
+                        )
                 if method == "sft+rl" and any(
                     (len(prompts[index % len(prompts)]) + self.rl_max_tokens) * self.rl_group_size
                     > self.max_batch_tokens
@@ -723,15 +788,23 @@ class RiverProvider:
                         "Potential RL rollout batch exceeds RIVER_MAX_BATCH_TOKENS. Reduce prompt context, rollout group size or RL output tokens before training."
                     )
                 check_cancelled()
+                run_context["stage"] = "create_session"
                 with closing(self._client(sdk)) as client:
                     with client.session(
                         timeout=self.training_timeout, project="reflex", run=name
                     ) as session:
+                        run_context.update(
+                            stage="create_model", session_id=getattr(session, "session_id", "")
+                        )
                         model = session.create_model(
                             base_model=self.base_model,
                             lora=sdk.LoraConfig(rank=self.lora_rank, seed=42),
                             tokenizer=tokenizer,
                             timeout=self.training_timeout,
+                        )
+                        run_context.update(
+                            model_id=model.model_id,
+                            training_run_id=getattr(model, "training_run_id", ""),
                         )
                         emit(
                             {
@@ -739,31 +812,76 @@ class RiverProvider:
                                 "model": model.model_id,
                                 "steps": self.steps,
                                 "method": "sft",
-                                "batch_tokens": token_count,
+                                "batch_tokens": max(batch_token_counts),
+                                "dataset_tokens": token_count,
+                                "batch_size": self.batch_size,
+                                "batches_per_pass": batches_per_pass,
                                 "task_kind": task_kind,
+                                "session_id": run_context["session_id"],
+                                "training_run_id": run_context["training_run_id"],
                             }
                         )
                         losses: list[float] = []
+                        sft_history: list[dict[str, Any]] = []
+                        covered_examples: set[int] = set()
+                        processed_tokens = 0
+                        processed_supervised_tokens = 0
+                        processed_examples = 0
                         policy = None
                         for step in range(self.steps):
                             check_cancelled()
-                            result = model.forward_backward(
-                                batch, loss_fn="cross_entropy", timeout=self.training_timeout
+                            chunk_index = step % batches_per_pass
+                            indices = batch_indices[chunk_index]
+                            step_batch = [batch[index] for index in indices]
+                            step_details = {
+                                "example_indices": indices,
+                                "batch_tokens": batch_token_counts[chunk_index],
+                                "supervised_tokens": int(
+                                    sum(sum(datum["weights"]) for datum in step_batch)
+                                ),
+                                "epoch": step // batches_per_pass + 1,
+                            }
+                            run_context.update(stage="forward_backward_submit", step=step + 1)
+                            run_context.pop("request_id", None)
+                            pending = model.submit_forward_backward(
+                                step_batch, loss_fn="cross_entropy", timeout=self.training_timeout
                             )
+                            run_context.update(
+                                stage="forward_backward_wait", request_id=pending.request_id
+                            )
+                            emit({"type": "training_operation", **run_context, **step_details})
+                            result = pending.result()
                             check_cancelled()
                             loss = result.metrics.get("loss")
                             if not isinstance(loss, (int, float)) or not math.isfinite(loss):
                                 raise RiverOperationError(
                                     "River returned no finite SFT loss. No optimizer step was submitted; inspect the run in the River Console."
                                 )
-                            optimized = model.optim_step(
+                            run_context["stage"] = "optim_step_submit"
+                            run_context.pop("request_id", None)
+                            pending = model.submit_optim_step(
                                 lr=self.learning_rate,
                                 grad_clip_norm=1.0,
                                 timeout=self.training_timeout,
-                                idempotency_key=f"{name}-step-{step + 1}",
+                                idempotency_key=str(
+                                    uuid5(NAMESPACE_URL, f"reflex:{model.model_id}:sft:{step + 1}")
+                                ),
                             )
+                            run_context.update(
+                                stage="optim_step_wait", request_id=pending.request_id
+                            )
+                            emit({"type": "training_operation", **run_context, **step_details})
+                            optimized = pending.result()
+                            run_context["confirmed_steps"] = step + 1
                             policy = getattr(optimized, "policy_version", None)
                             losses.append(float(loss))
+                            covered_examples.update(indices)
+                            processed_examples += len(indices)
+                            processed_tokens += step_details["batch_tokens"]
+                            processed_supervised_tokens += step_details["supervised_tokens"]
+                            sft_history.append(
+                                {"step": step + 1, "loss": float(loss), **step_details}
+                            )
                             emit(
                                 {
                                     "type": "training_step",
@@ -771,6 +889,7 @@ class RiverProvider:
                                     "total_steps": self.steps,
                                     "loss": float(loss),
                                     "method": "sft",
+                                    **step_details,
                                 }
                             )
                         provenance = {
@@ -791,8 +910,17 @@ class RiverProvider:
                             "examples": len(batch),
                             "method": "sft",
                             "task_kind": task_kind,
-                            "batch_tokens": token_count,
-                            "training_tokens": token_count * len(losses),
+                            "batch_tokens": max(batch_token_counts),
+                            "dataset_tokens": token_count,
+                            "batch_size": self.batch_size,
+                            "batches_per_pass": batches_per_pass,
+                            "training_tokens": processed_tokens,
+                            "supervised_tokens": processed_supervised_tokens,
+                            "unique_examples_covered": len(covered_examples),
+                            "examples_processed": processed_examples,
+                            "passes": processed_examples / len(batch),
+                            "completed_passes": len(losses) // batches_per_pass,
+                            "sft_history": sft_history,
                             "learning_rate": self.learning_rate,
                             "lora_rank": self.lora_rank,
                             "lora_seed": 42,
@@ -804,6 +932,8 @@ class RiverProvider:
                         recovery_checkpoint = None
                         if method == "sft+rl":
                             check_cancelled()
+                            run_context["stage"] = "save_sft_checkpoint"
+                            run_context.pop("request_id", None)
                             recovery = model.save_weights(
                                 f"{name}-sft",
                                 mode="inference",
@@ -827,6 +957,8 @@ class RiverProvider:
                                     **provenance,
                                 }
                             )
+                        run_context["stage"] = "rl" if method == "sft+rl" else "save_checkpoint"
+                        run_context.pop("request_id", None)
                         rl_history = (
                             self._train_rl(
                                 model, examples, prompts, policy, name, emit, check_cancelled
@@ -835,6 +967,9 @@ class RiverProvider:
                             else []
                         )
                         rl_updates = sum(record["updated"] for record in rl_history)
+                        run_context.update(
+                            stage="save_checkpoint", confirmed_steps=len(losses) + rl_updates
+                        )
                         emit(
                             {
                                 "type": "saving",
@@ -859,7 +994,7 @@ class RiverProvider:
                             "metrics": {
                                 **sft_metrics,
                                 "method": method,
-                                "training_tokens": token_count * len(losses)
+                                "training_tokens": processed_tokens
                                 + sum(record.get("training_tokens", 0) for record in rl_history),
                                 "rl_steps": rl_updates,
                                 "rl_attempts": len(rl_history),
@@ -877,7 +1012,14 @@ class RiverProvider:
             except (ProviderNotConfigured, RiverOperationError, ValueError):
                 raise
             except Exception as error:
-                raise self._failure("training", error) from None
+                failure = self._failure("training", error, run_context)
+                try:
+                    emit({"type": "training_diagnostic", **failure.diagnostics})
+                except RiverOperationError:
+                    # A persistence or cancellation failure must not erase the
+                    # original operation's status and reconciliation identifiers.
+                    pass
+                raise failure from None
 
         try:
             return await asyncio.to_thread(run)

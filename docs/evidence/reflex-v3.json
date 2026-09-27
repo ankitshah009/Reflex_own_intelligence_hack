@@ -1,0 +1,153 @@
+{
+  "checkpoint": {
+    "id": "f847f65a-c018-4c6c-9fcb-a1d6133f08bf",
+    "name": "reflex-repair-v3-20260927",
+    "checkpoint": "river://46becc1e-99d0-4a01-9d67-5ce7a04979d5/sampler_weights/reflex-repair-v3-20260927-c23bc8c8-27e9-40d4-be38-9739acded3c7",
+    "model": "Qwen/Qwen3.5-9B",
+    "steps": 16,
+    "example_count": 24,
+    "dataset_hash": "2d472e4308987ef7a518a954e31646407bf7b46faa26f1e4b56876fc2d7c4a93",
+    "training_job_id": "9e154360-9d54-46c0-b74d-af65cb318764",
+    "tokenizer_revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a"
+  },
+  "training": {
+    "training_tokens": 41153,
+    "batch_size": 2,
+    "unique_examples_covered": 24,
+    "completed_passes": 1,
+    "sft_steps": 16,
+    "rl_steps": 0
+  },
+  "evaluation": {
+    "id": "cd50efd0-d079-430e-9121-d57a1b258207",
+    "status": "completed",
+    "case_count": 4,
+    "matched_prompts": true,
+    "eval_set_hash": "b8ab7b1d2b7e14e5033e72e78a0fe3853d2ccb9c7ab8cb3e259a6d71b672df63",
+    "dataset_hash": "2d472e4308987ef7a518a954e31646407bf7b46faa26f1e4b56876fc2d7c4a93",
+    "model_input_hash": "2b2f0d6c7698e3e4988542b337d65d70d57282e84757edc579e67e95784cf36f"
+  },
+  "conditions": [
+    {
+      "name": "base",
+      "passed": 4,
+      "total": 4,
+      "success_rate": 1.0,
+      "cases": [
+        {
+          "case_id": "heldout-renewal",
+          "title": "Subscription invoice charged on redelivery",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "e54ff2810b8bbd6dd99a4669a543287836adb4075bf7c2bfbab3746fbfce0280"
+        },
+        {
+          "case_id": "heldout-warehouse",
+          "title": "Warehouse sequences collide",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "8e68a4b63e8f4d8e85da7ae5eb356b5551b171229e61c742330ec3c81d517c1c"
+        },
+        {
+          "case_id": "heldout-partial-refund",
+          "title": "One order needs two partial refunds",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "2c622284a8fa31099f380d180228af204d14a5dd7fcd8fbd604e96f28bca3a35"
+        },
+        {
+          "case_id": "heldout-fulfillment-release",
+          "title": "Fulfillment retry inflates available stock",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "8489771249f30e51bf64de2b61f6c5752c4942ebfb816defca03861a2c7dc88c"
+        }
+      ]
+    },
+    {
+      "name": "memory",
+      "passed": 4,
+      "total": 4,
+      "success_rate": 1.0,
+      "cases": [
+        {
+          "case_id": "heldout-renewal",
+          "title": "Subscription invoice charged on redelivery",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "e9334aaffd2f78b6626b81bafbf7f8a2ca18a9908123a74d1713f89c89665757"
+        },
+        {
+          "case_id": "heldout-warehouse",
+          "title": "Warehouse sequences collide",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "b152c4b6bb712ce089e4dc2b956a0669c2530b041a7e9806f7ad5dbb4034a097"
+        },
+        {
+          "case_id": "heldout-partial-refund",
+          "title": "One order needs two partial refunds",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "5bb12cef0fb53d75680df66e3fc1f9e91d459487bfdf7cd62d3bee6688322c5c"
+        },
+        {
+          "case_id": "heldout-fulfillment-release",
+          "title": "Fulfillment retry inflates available stock",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "8fe11325ea15ec25c38102d1085e6e6cdea8756951e59b0118f31eb78e4f2595"
+        }
+      ]
+    },
+    {
+      "name": "learned",
+      "passed": 4,
+      "total": 4,
+      "success_rate": 1.0,
+      "cases": [
+        {
+          "case_id": "heldout-renewal",
+          "title": "Subscription invoice charged on redelivery",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "e9334aaffd2f78b6626b81bafbf7f8a2ca18a9908123a74d1713f89c89665757"
+        },
+        {
+          "case_id": "heldout-warehouse",
+          "title": "Warehouse sequences collide",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "b152c4b6bb712ce089e4dc2b956a0669c2530b041a7e9806f7ad5dbb4034a097"
+        },
+        {
+          "case_id": "heldout-partial-refund",
+          "title": "One order needs two partial refunds",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "5bb12cef0fb53d75680df66e3fc1f9e91d459487bfdf7cd62d3bee6688322c5c"
+        },
+        {
+          "case_id": "heldout-fulfillment-release",
+          "title": "Fulfillment retry inflates available stock",
+          "passed": 4,
+          "total": 4,
+          "status": "passed",
+          "input_token_hash": "8fe11325ea15ec25c38102d1085e6e6cdea8756951e59b0118f31eb78e4f2595"
+        }
+      ]
+    }
+  ],
+  "interpretation": "All three conditions passed 4/4 synthetic held-out cases. This run does not show an accuracy improvement."
+}

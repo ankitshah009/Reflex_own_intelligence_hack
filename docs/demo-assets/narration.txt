@@ -1,0 +1,29 @@
+01. One click. Two orders.
+A customer clicks once. Your webhook arrives twice. Watch what breaks. This is Reflex, an engineering agent that learns from verified repairs.
+
+02. The retry becomes a second order.
+The same operation creates two orders and deducts inventory twice. This is a sample incident, but the code is really running. We're showing saved, real execution results.
+
+03. Execution exposes the failure.
+Two of four checks fail. Repeated deliveries must preserve the original outcome, while different orders must still work. That contract gives the agent a concrete target.
+
+04. River writes the repair.
+River generates this patch. It recognizes an existing operation before changing inventory, and returns its original response. The recorded checkout repair took about fifteen seconds.
+
+05. One order. Four checks pass.
+The model produced code. Execution determined whether it worked. All four checks pass, including distinct operations and delayed retries. The repair and its evidence stay together.
+
+06. Verified work becomes training data.
+Every verified fix becomes a reusable training asset for your engineering team. We built twenty-four eligible examples: five accepted repairs and nineteen generated repairs that passed executable checks. These are variants from six templates. Failures stay out of training.
+
+07. A checkpoint you can keep.
+River completed sixteen weight updates and saved this checkpoint. The training snapshot preserves exactly which examples were used. The trained adapter can be downloaded from River Console.
+
+08. Measure the next failure.
+Base, memory, and learned each passed four of four. The inputs match. This small benchmark confirms the full workflow, but shows no accuracy gain yet.
+
+09. Bring the code you ship.
+For a team's own code, the repository workspace takes a Python file and its regression tests. It runs a disposable copy and keeps the original workspace intact.
+
+10. Your failures become your dataset. Your dataset becomes your model.
+Teams should keep the intelligence their work creates. UFO has an SDK verified extension; River trains the specialist. Your failures become your dataset. Your dataset becomes your model.

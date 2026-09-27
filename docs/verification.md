@@ -4,11 +4,11 @@ This document separates local correctness checks from a live sponsor demonstrati
 
 ## Recorded local result
 
-On 2026-09-27, the latest complete backend run completed with **172 passed and 51 subtests passed** in 25.58 seconds. This includes 15 repair API integration tests and 16 repair engine tests, using actual macOS isolation, alongside the original review/provider/UFO suites:
+On 2026-09-27, the latest complete backend run completed with **240 passed and 88 subtests passed** in **75.79 seconds**. Global Ruff passed. This expanded run includes the curriculum and repository workflow alongside the repair, review, provider, and UFO suites. The earlier repair-workbench snapshot passed 172 tests and 51 subtests in 25.58 seconds; that historical result is preserved separately from the expanded run.
 
 ```sh
 .venv/bin/pytest -q
-.venv/bin/ruff check backend tests integrations/ufo scripts/check_tokenizer.py
+.venv/bin/ruff check backend tests integrations/ufo scripts
 ```
 
 Ruff passed. The production frontend also built successfully with TypeScript and Vite 8.3.1:
@@ -19,6 +19,54 @@ npm run build
 ```
 
 There was one Starlette deprecation warning about its test client's `httpx` compatibility path. It did not fail the run. These results cover the local API and provider-contract scope described below; no River calls were submitted by this test run.
+
+## Completed live training and held-out result
+
+Machine-readable receipt: [recorded v3 evidence](evidence/reflex-v3.json).
+
+River saved **`reflex-repair-v3-20260927`** after **16 confirmed optimizer
+updates**, using **24 examples** and processing **41,153 training tokens**.
+The method was SFT with zero RL steps. The frozen dataset contains five
+operator-accepted repairs and 19 machine-verified generated repairs. The
+curriculum attempted 24 tasks, made 23 River requests, and produced 19 repairs
+that passed all four executable checks. These are variants of six synthetic
+failure families, not independent customer incidents.
+
+| Condition | Complete repairs passed |
+| --- | --- |
+| Base | 4/4 |
+| Memory | 4/4 |
+| Learned v3 | 4/4 |
+
+The evaluation completed with `matched_prompts: true`: memory and learned
+used identical inputs. **No accuracy gain was measured.** All three conditions
+hit this four-case benchmark's ceiling. These results establish a working
+training/checkpoint/evaluation path, not improved reliability on production
+incidents. Loss values from different minibatches do not establish improvement.
+
+- Training job: `9e154360-9d54-46c0-b74d-af65cb318764`
+- Checkpoint record: `f847f65a-c018-4c6c-9fcb-a1d6133f08bf`
+- Dataset SHA-256: `2d472e4308987ef7a518a954e31646407bf7b46faa26f1e4b56876fc2d7c4a93`
+- Completed evaluation: `cd50efd0-d079-430e-9121-d57a1b258207`
+- Evaluation job: `8bcea186-add2-43e0-a984-17127dfb8765`
+- Checkpoint: `river://46becc1e-99d0-4a01-9d67-5ce7a04979d5/sampler_weights/reflex-repair-v3-20260927-c23bc8c8-27e9-40d4-be38-9739acded3c7`
+
+Earlier failures remain part of the record. The first training attempt
+(`7d56f384-1e98-4750-98f1-a138df5b25a6`) failed with a connection error;
+a subsequent read-only provider inspection confirmed policy step zero. A
+later optimizer request returned `INVALID_ARGUMENT` because its idempotency
+key was not a UUID. The adapter now supplies a valid UUID, and the successful
+v3 run above confirmed actual optimizer updates and a saved checkpoint.
+Neither failed attempt is counted as completed training. A later longer run
+is a separate experiment and does not replace the v3 result shown here.
+
+## Repository execution evidence
+
+The Repository API/UI inspects a local Python source/test pair and runs tests
+against an isolated snapshot. A real project pair returned **7 passed and
+1 skipped**. The repository-specific suite passed **30 tests**. This proves
+repository inspection and execution; it does not establish a live learned-model
+repair improvement on repository tasks. Original working files are preserved.
 
 ## Real tokenizer preflight
 
@@ -162,10 +210,9 @@ The [research record](research.md) identifies the official sources and pinned in
 
 - Boot the actual UFO runtime at the documented revision and confirm the Reflex tool and hooks are active in the selected pack.
 - Run a real UFO review and verify that its actual workspace, turn, thread, agent, and observable trajectory reach Reflex.
-- Use a configured River account to complete a sample with the selected base model and the production tokenizer/rendering path.
-- Approve sufficient distinct experiences, run a real SFT backward/optimizer sequence, and confirm the saved checkpoint URI in River and Reflex. If claiming RL, additionally confirm varied scored rollouts, a successful RL optimizer update, and the final checkpoint; a skipped update is not evidence of reward learning.
-- Run all held-out cases in all three conditions. Publish observed denominators, failed outputs, and results even if learned weights do not outperform memory.
-- Invoke that saved specialist through UFO on a genuinely new PR; verify restart recovery and retry behavior against real service behavior.
+- Invoke the saved repair specialist through a real authenticated UFO conversation; verify the live turn provenance, restart recovery, and retry behavior.
+- Measure on harder excluded cases and real team incidents. The completed four-case comparison above had no headroom to show an accuracy gain.
+- If claiming RL, additionally confirm varied scored rollouts, a successful RL optimizer update, and the final checkpoint. The completed repair run used SFT only.
 
 Local tests do not prove network availability, tokenization downloads, account permissions, provider queue latency, provider billing, convergence, hosting eligibility, or a performance improvement. The held-out fixtures are small fictional engineering cases, so even a successful live evaluation supports only a limited measured claim.
 

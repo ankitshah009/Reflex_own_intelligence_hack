@@ -1,0 +1,67 @@
+{
+  "format": "edited walkthrough using genuine screenshots",
+  "narration": "local macOS Samantha text-to-speech",
+  "duration_seconds": 115.47070200000002,
+  "scenes": [
+    {
+      "start": 0.0,
+      "end": 9.807,
+      "text": "A customer clicks once. Your webhook arrives twice. Watch what breaks. This is Reflex, an engineering agent that learns from verified repairs.",
+      "image": null
+    },
+    {
+      "start": 9.807,
+      "end": 20.767,
+      "text": "The same operation creates two orders and deducts inventory twice. This is a sample incident, but the code is really running. We're showing saved, real execution results.",
+      "image": ".cache/demo/checkout-broken-preview.png"
+    },
+    {
+      "start": 20.767,
+      "end": 31.158,
+      "text": "Two of four checks fail. Repeated deliveries must preserve the original outcome, while different orders must still work. That contract gives the agent a concrete target.",
+      "image": ".cache/demo/checkout-broken-checks.png"
+    },
+    {
+      "start": 31.158,
+      "end": 42.995,
+      "text": "River generates this patch. It recognizes an existing operation before changing inventory, and returns its original response. The recorded checkout repair took about fifteen seconds.",
+      "image": ".cache/demo/checkout-patch.png"
+    },
+    {
+      "start": 42.995,
+      "end": 54.269,
+      "text": "The model produced code. Execution determined whether it worked. All four checks pass, including distinct operations and delayed retries. The repair and its evidence stay together.",
+      "image": ".cache/demo/checkout-fixed-preview.png"
+    },
+    {
+      "start": 54.269,
+      "end": 71.078,
+      "text": "Every verified fix becomes a reusable training asset for your engineering team. We built twenty-four eligible examples: five accepted repairs and nineteen generated repairs that passed executable checks. These are variants from six templates. Failures stay out of training.",
+      "image": ".cache/demo/learning-grid.png"
+    },
+    {
+      "start": 71.078,
+      "end": 82.695,
+      "text": "River completed sixteen weight updates and saved this checkpoint. The training snapshot preserves exactly which examples were used. The trained adapter can be downloaded from River Console.",
+      "image": ".cache/demo/checkpoint.png"
+    },
+    {
+      "start": 82.695,
+      "end": 92.644,
+      "text": "Base, memory, and learned each passed four of four. The inputs match. This small benchmark confirms the full workflow, but shows no accuracy gain yet.",
+      "image": ".cache/demo/evaluation-final.png"
+    },
+    {
+      "start": 92.644,
+      "end": 103.292,
+      "text": "For a team's own code, the repository workspace takes a Python file and its regression tests. It runs a disposable copy and keeps the original workspace intact.",
+      "image": ".cache/demo/repository-baseline.png"
+    },
+    {
+      "start": 103.292,
+      "end": 115.471,
+      "text": "Teams should keep the intelligence their work creates. UFO has an SDK verified extension; River trains the specialist. Your failures become your dataset. Your dataset becomes your model.",
+      "image": null
+    }
+  ]
+}
