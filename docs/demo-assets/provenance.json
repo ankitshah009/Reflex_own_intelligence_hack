@@ -1,61 +1,138 @@
 {
-  "format": "edited walkthrough using genuine screenshots",
+  "format": "Edited walkthrough from genuine app screenshots and saved execution/training receipts",
   "narration": "local macOS Samantha text-to-speech",
-  "duration_seconds": 103.83852500000002,
+  "duration_seconds": 104.2,
   "scenes": [
     {
       "start": 0.0,
-      "end": 9.807,
-      "text": "A customer clicks once. Your webhook arrives twice. Watch what breaks. This is Reflex, an engineering agent that learns from verified repairs.",
-      "image": null
+      "end": 8.5,
+      "text": "A customer clicks once. Your webhook arrives twice. This is Reflex: verified work becomes a model your agent can use.",
+      "image": null,
+      "title": "One click. Two orders.",
+      "evidence_source": null,
+      "receipt": null,
+      "presentation": "static evidence composition"
     },
     {
-      "start": 9.807,
-      "end": 20.767,
-      "text": "The same operation creates two orders and deducts inventory twice. This is a sample incident, but the code is really running. We're showing saved, real execution results.",
-      "image": ".cache/demo/checkout-broken-preview.png"
+      "start": 8.5,
+      "end": 17.633,
+      "text": "The same operation creates two orders and deducts inventory twice. This sample incident runs real code. These are saved execution results.",
+      "image": ".cache/demo/checkout-broken-preview.png",
+      "title": "The retry becomes a second order.",
+      "evidence_source": null,
+      "receipt": null,
+      "presentation": "static evidence composition"
     },
     {
-      "start": 20.767,
-      "end": 31.158,
-      "text": "Two of four checks fail. Repeated deliveries must preserve the original outcome, while different orders must still work. That contract gives the agent a concrete target.",
-      "image": ".cache/demo/checkout-broken-checks.png"
+      "start": 17.633,
+      "end": 27.233,
+      "text": "Two checks fail. Repeated deliveries must preserve the original outcome, while different orders must still work. Execution gives the agent its target.",
+      "image": ".cache/demo/checkout-broken-checks.png",
+      "title": "Two checks expose the broken retry.",
+      "evidence_source": null,
+      "receipt": null,
+      "presentation": "static evidence composition"
     },
     {
-      "start": 31.158,
-      "end": 42.995,
-      "text": "River generates this patch. It recognizes an existing operation before changing inventory, and returns its original response. The recorded checkout repair took about fifteen seconds.",
-      "image": ".cache/demo/checkout-patch.png"
+      "start": 27.233,
+      "end": 37.333,
+      "text": "River writes this repair. It recognizes the replay before changing inventory and returns the original response. The checkout repair took about fifteen seconds.",
+      "image": ".cache/demo/checkout-patch.png",
+      "title": "Recognize the replay before changing inventory.",
+      "evidence_source": null,
+      "receipt": null,
+      "presentation": "static evidence composition"
     },
     {
-      "start": 42.995,
-      "end": 54.269,
-      "text": "The model produced code. Execution determined whether it worked. All four checks pass, including distinct operations and delayed retries. The repair and its evidence stay together.",
-      "image": ".cache/demo/checkout-fixed-preview.png"
+      "start": 37.333,
+      "end": 46.233,
+      "text": "One order. Four checks pass. The model produced code; execution determined whether it worked. The repair and its evidence stay together.",
+      "image": ".cache/demo/checkout-fixed-preview.png",
+      "title": "One order. Four checks pass.",
+      "evidence_source": null,
+      "receipt": null,
+      "presentation": "static evidence composition"
     },
     {
-      "start": 54.269,
-      "end": 72.959,
-      "text": "River proposes repairs, execution verifies them, and only verified repairs train the model. This is rejection sampling fine tuning. Twenty four generated tasks led to twenty three River requests and nineteen verified repairs. With five accepted repairs, we trained on twenty four examples.",
-      "image": ".cache/demo/learning-grid.png"
+      "start": 46.233,
+      "end": 63.133,
+      "text": "River proposes, execution verifies, and verified repairs train the model: rejection sampling fine tuning. Twenty four generated tasks produced twenty three River requests and nineteen verified repairs. Five accepted repairs bring the training set to twenty four.",
+      "image": ".cache/demo/learning-grid.png",
+      "title": "Only verified repairs train the model.",
+      "evidence_source": null,
+      "receipt": null,
+      "presentation": "static evidence composition"
     },
     {
-      "start": 72.959,
-      "end": 84.575,
-      "text": "River completed sixteen weight updates and saved this checkpoint. The training snapshot preserves exactly which examples were used. The trained adapter can be downloaded from River Console.",
-      "image": ".cache/demo/checkpoint.png"
+      "start": 63.133,
+      "end": 73.733,
+      "text": "The latest River run completed forty eight weight updates on twenty four verified examples. It saved version four, our own trained specialist, ready to use and export.",
+      "image": null,
+      "title": "Your own specialist. Ready for the next task.",
+      "evidence_source": "docs/evidence/reflex-v4-training.json",
+      "receipt": {
+        "steps": 48,
+        "examples": 24,
+        "tokens": 122752,
+        "name": "reflex-repair-v4-48steps-20260927",
+        "model": "Qwen/Qwen3.5-9B",
+        "dataset_hash": "2d472e4308987ef7a518a954e31646407bf7b46faa26f1e4b56876fc2d7c4a93"
+      },
+      "presentation": "static evidence composition"
     },
     {
-      "start": 84.575,
-      "end": 91.66,
-      "text": "All three passed our four held out failures. The set is too easy to show a gap, so we are not claiming one.",
-      "image": ".cache/demo/evaluation-final.png"
+      "start": 73.733,
+      "end": 81.933,
+      "text": "In our earlier version three comparison, all three passed four held out failures. The set is too easy to show a learning advantage.",
+      "image": ".cache/demo/evaluation-final.png",
+      "title": "Earlier v3 comparison: four held-out failures.",
+      "evidence_source": "docs/evidence/reflex-v3.json",
+      "receipt": null,
+      "presentation": "static evidence composition"
     },
     {
-      "start": 91.66,
-      "end": 103.839,
-      "text": "Teams should keep the intelligence their work creates. UFO has an SDK verified extension; River trains the specialist. Your failures become your dataset. Your dataset becomes your model.",
-      "image": null
+      "start": 81.933,
+      "end": 96.533,
+      "text": "Now UFO uses our own trained specialist. Its repair tool calls River version four. In this recorded SDK run, stock replay moved from two of four to four of four checks in five point seven seconds. This was a training case.",
+      "image": null,
+      "title": "UFO called our own trained specialist.",
+      "evidence_source": "docs/evidence/ufo-live-v4.json",
+      "receipt": {
+        "tool": "repair_code_with_reflex",
+        "case_id": "repair-stock-replay",
+        "elapsed": 5.693152,
+        "started_at": "2026-09-27T23:38:53.251702+00:00",
+        "completed_at": "2026-09-27T23:38:58.944854+00:00",
+        "code_hash": "e1dee1b773d85125f2470eb7d7bf717ad1bbf17e8789c22b8700dc7508cfe188",
+        "checkpoint": "reflex-repair-v4-48steps-20260927",
+        "baseline": 2,
+        "candidate": 4,
+        "total": 4
+      },
+      "presentation": "edited saved receipt with sequential stage highlights",
+      "stage_highlights": "Illustrative progression through recorded tool/model/verification; not original elapsed timing."
+    },
+    {
+      "start": 96.533,
+      "end": 104.2,
+      "text": "UFO now calls our trained model to do the job. Your failures become your dataset. Your dataset becomes your model.",
+      "image": null,
+      "title": "Your failures become your dataset. Your dataset becomes your model.",
+      "evidence_source": null,
+      "receipt": null,
+      "presentation": "static evidence composition"
     }
-  ]
+  ],
+  "encoded_duration_seconds": 104.252344,
+  "evidence": {
+    "docs/evidence/ufo-live-v4.json": {
+      "sha256": "55e7dd4547a56102e87335caf244b80f9a60173cfb47a56420517cb5ccf305d3"
+    },
+    "docs/evidence/reflex-v4-training.json": {
+      "sha256": "9b3d89d4e7dda2537a9dfbae518f1673d85884fcf4849695c1a66a21ff7f9fcd"
+    },
+    "docs/evidence/reflex-v3.json": {
+      "sha256": "5d09d54f99a01347eda5561d56b3f2418872623dbbc9f2ba8635c013cdabf430"
+    }
+  }
 }

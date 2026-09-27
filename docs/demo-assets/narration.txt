@@ -1,26 +1,29 @@
 01. One click. Two orders.
-A customer clicks once. Your webhook arrives twice. Watch what breaks. This is Reflex, an engineering agent that learns from verified repairs.
+A customer clicks once. Your webhook arrives twice. This is Reflex: verified work becomes a model your agent can use.
 
 02. The retry becomes a second order.
-The same operation creates two orders and deducts inventory twice. This is a sample incident, but the code is really running. We're showing saved, real execution results.
+The same operation creates two orders and deducts inventory twice. This sample incident runs real code. These are saved execution results.
 
 03. Two checks expose the broken retry.
-Two of four checks fail. Repeated deliveries must preserve the original outcome, while different orders must still work. That contract gives the agent a concrete target.
+Two checks fail. Repeated deliveries must preserve the original outcome, while different orders must still work. Execution gives the agent its target.
 
 04. Recognize the replay before changing inventory.
-River generates this patch. It recognizes an existing operation before changing inventory, and returns its original response. The recorded checkout repair took about fifteen seconds.
+River writes this repair. It recognizes the replay before changing inventory and returns the original response. The checkout repair took about fifteen seconds.
 
 05. One order. Four checks pass.
-The model produced code. Execution determined whether it worked. All four checks pass, including distinct operations and delayed retries. The repair and its evidence stay together.
+One order. Four checks pass. The model produced code; execution determined whether it worked. The repair and its evidence stay together.
 
 06. Only verified repairs train the model.
-River proposes repairs, execution verifies them, and only verified repairs train the model. This is rejection sampling fine tuning. Twenty four generated tasks led to twenty three River requests and nineteen verified repairs. With five accepted repairs, we trained on twenty four examples.
+River proposes, execution verifies, and verified repairs train the model: rejection sampling fine tuning. Twenty four generated tasks produced twenty three River requests and nineteen verified repairs. Five accepted repairs bring the training set to twenty four.
 
-07. A checkpoint you can keep.
-River completed sixteen weight updates and saved this checkpoint. The training snapshot preserves exactly which examples were used. The trained adapter can be downloaded from River Console.
+07. Your own specialist. Ready for the next task.
+The latest River run completed forty eight weight updates on twenty four verified examples. It saved version four, our own trained specialist, ready to use and export.
 
-08. Four held-out failures. Three conditions.
-All three passed our four held out failures. The set is too easy to show a gap, so we are not claiming one.
+08. Earlier v3 comparison: four held-out failures.
+In our earlier version three comparison, all three passed four held out failures. The set is too easy to show a learning advantage.
 
-09. Your failures become your dataset. Your dataset becomes your model.
-Teams should keep the intelligence their work creates. UFO has an SDK verified extension; River trains the specialist. Your failures become your dataset. Your dataset becomes your model.
+09. UFO called our own trained specialist.
+Now UFO uses our own trained specialist. Its repair tool calls River version four. In this recorded SDK run, stock replay moved from two of four to four of four checks in five point seven seconds. This was a training case.
+
+10. Your failures become your dataset. Your dataset becomes your model.
+UFO now calls our trained model to do the job. Your failures become your dataset. Your dataset becomes your model.

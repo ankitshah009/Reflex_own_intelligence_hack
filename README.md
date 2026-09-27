@@ -4,11 +4,15 @@
 
 Reflex is a repair workspace for recurring engineering failures. Reproduce a broken customer flow, inspect a River-generated patch, execute behavioral checks, and turn accepted repairs into a specialist model. UFO supplies the agent runtime and observable work; Reflex retains the evidence and dataset lineage; River updates the model's weights.
 
-**Live evidence:** River repaired the sample duplicate-checkout bug from **2/4 to 4/4 passing checks in 15.4 seconds**, then saved **`reflex-repair-v3-20260927` after 16 confirmed weight updates on 24 verified examples**. The completed held-out comparison is **base 4/4 · memory 4/4 · learned 4/4**, with matching memory/learned prompts. All three reached this small benchmark's ceiling: **no accuracy gain was measured**. [Full receipts and limits](docs/verification.md).
+**The live loop:** verified repairs became **24 training examples**. River saved **`reflex-repair-v4-48steps-20260927` after 48 weight updates and 122,752 processed training tokens**. The installed UFO SDK's real `repair_code_with_reflex` tool then used that checkpoint to repair the stock-replay training case: **2/4 → 4/4 executed checks in about 5.7 seconds**, with its observable trace saved. This was a programmatic SDK invocation; a full authenticated UFO conversation has not been demonstrated. [Training receipt](docs/evidence/reflex-v4-training.json) · [Live UFO receipt](docs/evidence/ufo-live-v4.json).
 
-The local Repository tab also inspects Python source and executes its regression tests in an isolated snapshot; a real source/test pair returned **7 passed, 1 skipped**. The complete backend suite passed **240 tests and 88 subtests**, and global Ruff passed. A real programmatic UFO SDK tool call used the later 48-update checkpoint and passed 4/4 stock-repair checks. An authenticated full UFO conversation has not been demonstrated.
+**Measured limits:** the earlier complete v3 held-out comparison remains **base 4/4 · memory 4/4 · learned 4/4**, with matching memory/learned prompts. No accuracy gain was measured. The later v4 replay had a base execution permission error; that infrastructure failure does not establish a learning advantage. The first checkout repair also remains recorded: **2/4 → 4/4 checks in 15.4 seconds**. [Full receipts and limits](docs/verification.md).
+
+The local Repository tab also inspects Python source and executes its regression tests in an isolated snapshot; a real source/test pair returned **7 passed, 1 skipped**. The complete backend suite passed **240 tests and 88 subtests**, and global Ruff passed.
 
 **[Watch the narrated demo](https://ankitshah009.github.io/Reflex_own_intelligence_hack/)** · [Submission fields](docs/submission.md) · [Live UFO receipt](docs/evidence/ufo-live-v4.json)
+
+Source: [Reflex on GitHub](https://github.com/ankitshah009/Reflex_own_intelligence_hack).
 
 For the presentation, use the [final narrated transcript](docs/demo-assets/narration.txt) and [submission fields](docs/submission.md).
 
@@ -62,6 +66,7 @@ Use one API worker. Jobs run in its process and persist progress in SQLite. On r
 3. **Accept:** review a passing patch and explicitly approve it for training. Editing invalidates earlier verification; the server rechecks acceptance.
 4. **Learn:** train SFT on an immutable snapshot of accepted repairs and machine-verified generated samples. Provenance distinguishes those two sources. A checkpoint appears only after River confirms it.
 5. **Compare:** evaluate four excluded cases against base, memory, and learned weights. Memory and learned use identical input tokens.
+6. **Reuse through UFO:** the installed SDK tool calls the saved specialist and imports its observable work into the experience ledger. The live v4 stock-repair receipt demonstrates this path.
 
 You can bring a Python `apply(state, event)` handler with its initial state,
 events, and expected outputs. The supplied six training incidents and four
