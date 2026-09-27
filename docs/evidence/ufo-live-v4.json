@@ -1,0 +1,34 @@
+{
+  "source": "programmatic SDK invocation",
+  "status": "completed",
+  "case_id": "repair-stock-replay",
+  "condition": "auto",
+  "checkpoint": "river://5a8a3122-02ae-4b52-a837-4ce16b3c7d4d/sampler_weights/reflex-repair-v4-48steps-20260927-f01dff2f-99f5-4643-9347-0348a176fc54",
+  "started_at": "2026-09-27T23:38:53.251702+00:00",
+  "completed_at": "2026-09-27T23:38:58.944854+00:00",
+  "runtime": "ufo-ai/ufo-core@63ba388ed449ff46c9d70744119dffc85df0fbf8",
+  "tool": "repair_code_with_reflex",
+  "experience_id": "f615b601-650d-4231-a45f-c79fcd4bd800",
+  "job_id": "a53debdc-85c6-40ec-8925-84584f2ce71a",
+  "code_hash": "e1dee1b773d85125f2470eb7d7bf717ad1bbf17e8789c22b8700dc7508cfe188",
+  "input_token_hash": "16ffa471883ca975149a5666018ce301edbadd327358afc1c2d4e89ed6267aa8",
+  "baseline": {
+    "passed": 2,
+    "total": 4
+  },
+  "candidate": {
+    "passed": 4,
+    "total": 4,
+    "isolation": {
+      "detail": "OS sandbox: host files, host writes, network, child-process creation, and signals denied; Python runtime files readable. AST/builtins restricted. Hard CPU, wall-time, and output limits; 256 MiB RSS watchdog sampled every 100ms (brief allocation spikes remain possible).",
+      "enforced": true,
+      "kind": "macos-seatbelt"
+    }
+  },
+  "observable_events": [
+    "instruction",
+    "tool_result",
+    "answer"
+  ],
+  "interpretation": "One live programmatic UFO SDK invocation on a training case. This is not a full agent conversation or held-out accuracy improvement."
+}

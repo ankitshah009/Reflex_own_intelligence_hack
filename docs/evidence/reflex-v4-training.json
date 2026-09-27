@@ -1,0 +1,235 @@
+{
+  "checkpoint": {
+    "id": "d837a018-f875-4859-88a5-fa3245fe7cdf",
+    "name": "reflex-repair-v4-48steps-20260927",
+    "checkpoint": "river://5a8a3122-02ae-4b52-a837-4ce16b3c7d4d/sampler_weights/reflex-repair-v4-48steps-20260927-f01dff2f-99f5-4643-9347-0348a176fc54",
+    "model": "Qwen/Qwen3.5-9B",
+    "steps": 48,
+    "example_count": 24,
+    "dataset_hash": "2d472e4308987ef7a518a954e31646407bf7b46faa26f1e4b56876fc2d7c4a93",
+    "training_job_id": "5e749692-e7cd-4458-8338-db5c5be79578",
+    "tokenizer_revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a"
+  },
+  "training": {
+    "training_tokens": 122752,
+    "batch_size": 2,
+    "unique_examples_covered": 24,
+    "completed_passes": 4,
+    "sft_steps": 48,
+    "rl_steps": 0
+  },
+  "evaluation": {
+    "id": "54f81d07-a9b9-41d3-b395-59fa02391fa6",
+    "status": "completed",
+    "case_count": 4,
+    "matched_prompts": true,
+    "eval_set_hash": "b8ab7b1d2b7e14e5033e72e78a0fe3853d2ccb9c7ab8cb3e259a6d71b672df63",
+    "dataset_hash": "2d472e4308987ef7a518a954e31646407bf7b46faa26f1e4b56876fc2d7c4a93",
+    "model_input_hash": "2b2f0d6c7698e3e4988542b337d65d70d57282e84757edc579e67e95784cf36f"
+  },
+  "conditions": [
+    {
+      "name": "base",
+      "passed": 3,
+      "total": 4,
+      "success_rate": 0.75,
+      "cases": [
+        {
+          "case_id": "heldout-renewal",
+          "status": "passed",
+          "passed": 4,
+          "total": 4,
+          "input_token_hash": "e54ff2810b8bbd6dd99a4669a543287836adb4075bf7c2bfbab3746fbfce0280"
+        },
+        {
+          "case_id": "heldout-warehouse",
+          "status": "passed",
+          "passed": 4,
+          "total": 4,
+          "input_token_hash": "8e68a4b63e8f4d8e85da7ae5eb356b5551b171229e61c742330ec3c81d517c1c"
+        },
+        {
+          "case_id": "heldout-partial-refund",
+          "status": "error",
+          "passed": 0,
+          "total": 4,
+          "input_token_hash": "2c622284a8fa31099f380d180228af204d14a5dd7fcd8fbd604e96f28bca3a35"
+        },
+        {
+          "case_id": "heldout-fulfillment-release",
+          "status": "passed",
+          "passed": 4,
+          "total": 4,
+          "input_token_hash": "8489771249f30e51bf64de2b61f6c5752c4942ebfb816defca03861a2c7dc88c"
+        }
+      ]
+    },
+    {
+      "name": "memory",
+      "passed": 4,
+      "total": 4,
+      "success_rate": 1.0,
+      "cases": [
+        {
+          "case_id": "heldout-renewal",
+          "status": "passed",
+          "passed": 4,
+          "total": 4,
+          "input_token_hash": "e9334aaffd2f78b6626b81bafbf7f8a2ca18a9908123a74d1713f89c89665757"
+        },
+        {
+          "case_id": "heldout-warehouse",
+          "status": "passed",
+          "passed": 4,
+          "total": 4,
+          "input_token_hash": "b152c4b6bb712ce089e4dc2b956a0669c2530b041a7e9806f7ad5dbb4034a097"
+        },
+        {
+          "case_id": "heldout-partial-refund",
+          "status": "passed",
+          "passed": 4,
+          "total": 4,
+          "input_token_hash": "5bb12cef0fb53d75680df66e3fc1f9e91d459487bfdf7cd62d3bee6688322c5c"
+        },
+        {
+          "case_id": "heldout-fulfillment-release",
+          "status": "passed",
+          "passed": 4,
+          "total": 4,
+          "input_token_hash": "8fe11325ea15ec25c38102d1085e6e6cdea8756951e59b0118f31eb78e4f2595"
+        }
+      ]
+    },
+    {
+      "name": "learned",
+      "passed": 4,
+      "total": 4,
+      "success_rate": 1.0,
+      "cases": [
+        {
+          "case_id": "heldout-renewal",
+          "status": "passed",
+          "passed": 4,
+          "total": 4,
+          "input_token_hash": "e9334aaffd2f78b6626b81bafbf7f8a2ca18a9908123a74d1713f89c89665757"
+        },
+        {
+          "case_id": "heldout-warehouse",
+          "status": "passed",
+          "passed": 4,
+          "total": 4,
+          "input_token_hash": "b152c4b6bb712ce089e4dc2b956a0669c2530b041a7e9806f7ad5dbb4034a097"
+        },
+        {
+          "case_id": "heldout-partial-refund",
+          "status": "passed",
+          "passed": 4,
+          "total": 4,
+          "input_token_hash": "5bb12cef0fb53d75680df66e3fc1f9e91d459487bfdf7cd62d3bee6688322c5c"
+        },
+        {
+          "case_id": "heldout-fulfillment-release",
+          "status": "passed",
+          "passed": 4,
+          "total": 4,
+          "input_token_hash": "8fe11325ea15ec25c38102d1085e6e6cdea8756951e59b0118f31eb78e4f2595"
+        }
+      ]
+    }
+  ],
+  "interpretation": "The repeat recorded base 3/4, memory 4/4, learned 4/4, but one base execution returned an OS permission error. This is an infrastructure failure, not evidence of a model error or training improvement. The earlier complete v3 comparison remains 4/4 in all conditions.",
+  "base_execution_error": {
+    "case_id": "heldout-partial-refund",
+    "original_report": {
+      "checks": [
+        {
+          "detail": "[Errno 1] Operation not permitted",
+          "name": "execution",
+          "passed": false
+        }
+      ],
+      "code_hash": "2b83d2e8c73e0741f60542b31cbbe11d7d16038909e25a75309c96f7f4fb1700",
+      "duration_ms": 219.47,
+      "isolation": {
+        "detail": "OS sandbox: host files, host writes, network, child-process creation, and signals denied; Python runtime files readable. AST/builtins restricted. Hard CPU, wall-time, and output limits; 256 MiB RSS watchdog sampled every 100ms (brief allocation spikes remain possible).",
+        "enforced": true,
+        "kind": "macos-seatbelt"
+      },
+      "passed": 0,
+      "preview": {
+        "results": [],
+        "state": {}
+      },
+      "status": "error",
+      "total": 4
+    },
+    "exact_code_local_recheck": {
+      "status": "passed",
+      "code_hash": "2b83d2e8c73e0741f60542b31cbbe11d7d16038909e25a75309c96f7f4fb1700",
+      "passed": 4,
+      "total": 4,
+      "checks": [
+        {
+          "name": "First delivery preserves the business contract",
+          "passed": true,
+          "detail": "State and responses match the expected replay behavior"
+        },
+        {
+          "name": "A repeated operation does not duplicate effects",
+          "passed": true,
+          "detail": "State and responses match the expected replay behavior"
+        },
+        {
+          "name": "Distinct operations both succeed",
+          "passed": true,
+          "detail": "State and responses match the expected replay behavior"
+        },
+        {
+          "name": "Delayed retries return the original result",
+          "passed": true,
+          "detail": "State and responses match the expected replay behavior"
+        }
+      ],
+      "preview": {
+        "state": {
+          "orders": [],
+          "inventory": {
+            "widget": 12,
+            "gadget": 8
+          },
+          "refunds": [
+            {
+              "id": "part-501",
+              "order_id": "purchase-50",
+              "amount_cents": 350
+            }
+          ],
+          "balance_cents": 9250,
+          "processed": {
+            "part-501": {
+              "refund_id": "part-501",
+              "refunded_cents": 350
+            }
+          }
+        },
+        "results": [
+          {
+            "refund_id": "part-501",
+            "refunded_cents": 350
+          },
+          {
+            "refund_id": "part-501",
+            "refunded_cents": 350
+          }
+        ]
+      },
+      "duration_ms": 246.72,
+      "isolation": {
+        "kind": "macos-seatbelt",
+        "enforced": true,
+        "detail": "OS sandbox: host files, host writes, network, child-process creation, and signals denied; Python runtime files readable. AST/builtins restricted. Hard CPU, wall-time, and output limits; 256 MiB RSS watchdog sampled every 100ms (brief allocation spikes remain possible)."
+      }
+    },
+    "same_code_hash": true
+  }
+}

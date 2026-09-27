@@ -1,6 +1,6 @@
 # Reflex demo video
 
-**Ready:** 115.543 seconds, 1920 × 1080, H.264/AAC, 4,064,507 bytes. Full decoding completed successfully. Narration peaks at −1.6 dB, with no clipped samples indicated.
+**Ready:** 103.919333 seconds, 1920 × 1080, H.264/AAC, 3,436,626 bytes. Full decoding completed successfully. Narration peaks at −1.6 dB.
 
 - `reflex-demo-narrated.mp4`: 1080p edited walkthrough, with local macOS Samantha narration.
 - `index.html`: local video player with poster and transcript links; this file is not itself a hosted URL.
@@ -12,7 +12,7 @@ This is an edited walkthrough of actual product captures, not a continuous live 
 
 The measured held-out result is **base 4/4, memory 4/4, learned 4/4**. Memory and learned inputs matched. This small benchmark did not measure an accuracy gain. The checkpoint was trained with 16 confirmed updates on 24 eligible examples; no reinforcement-learning update is claimed.
 
-The repository segment shows inspection and baseline execution, not a generated repository repair. The UFO extension was SDK verified; no authenticated live UFO conversation is shown.
+The repository segment was removed from this final cut. The UFO extension was SDK verified; no authenticated live UFO conversation is shown.
 
 ## Submission
 
@@ -33,3 +33,11 @@ The script reads `.cache/demo/manifest.json`, renders local HTML composition car
 Wait for the execution status indicator before capturing a local reproduction; a click returns before the result settles. Select **Original** explicitly for the broken baseline, because **Reproduce issue** runs the currently selected preview source.
 
 The current UI was also exercised during background training: original handler 2/4, two orders, 8 units, $144; saved River patch 4/4, one order, 10 units, $120. Additional paid repair requests remained disabled during the active training job.
+
+## Final cut
+
+Nine scenes, ending on ownership. The evaluation occupies approximately seven seconds: base, memory, and learned each pass four excluded cases; the set is too easy to establish a gap, so none is claimed.
+
+Data generation is described as rejection-sampling fine-tuning: River proposes repairs, execution verifies them, and verified repairs train the model. There were **24 generated tasks, 23 River requests, and 19 verified repairs**, plus five accepted repairs, for 24 eligible examples. The video retains the actual v3 experiment: 16 updates, 24 examples, and 41,153 training tokens.
+
+Projector readability was improved with large factual annotations and a faithful excerpt of the saved repair. The underlying app screenshots were not modified.

@@ -60,6 +60,26 @@ v3 run above confirmed actual optimizer updates and a saved checkpoint.
 Neither failed attempt is counted as completed training. A later longer run
 is a separate experiment and does not replace the v3 result shown here.
 
+## Longer run and live UFO specialist
+
+The separate v4 run completed **48 updates**, four passes over the same 24
+examples, and **122,752 training tokens**. River confirmed a second saved
+checkpoint. [Training and replay receipt](evidence/reflex-v4-training.json).
+
+Its repeat comparison recorded 3/4 base, 4/4 memory and 4/4 learned executions,
+but the missing base result was an OS permission error, not an incorrect
+model repair. A local recheck of the exact same code hash passed 4/4; the
+original error remains in the receipt. This repeat is not evidence of a
+learning advantage. The narrated demo preserves the complete v3 comparison.
+
+The installed UFO SDK's real `repair_code_with_reflex` tool then called the
+v4 checkpoint through Reflex. On the stock training case, the original
+handler passed 2/4 checks and the generated candidate passed 4/4, under the
+enforced sandbox. Three observed lifecycle events were imported into the
+ledger. This was one programmatic SDK invocation with no retries, not a full
+authenticated UFO conversation or a held-out learning result.
+[Live tool receipt](evidence/ufo-live-v4.json).
+
 ## Repository execution evidence
 
 The Repository API/UI inspects a local Python source/test pair and runs tests

@@ -6,9 +6,11 @@ Reflex is a repair workspace for recurring engineering failures. Reproduce a bro
 
 **Live evidence:** River repaired the sample duplicate-checkout bug from **2/4 to 4/4 passing checks in 15.4 seconds**, then saved **`reflex-repair-v3-20260927` after 16 confirmed weight updates on 24 verified examples**. The completed held-out comparison is **base 4/4 · memory 4/4 · learned 4/4**, with matching memory/learned prompts. All three reached this small benchmark's ceiling: **no accuracy gain was measured**. [Full receipts and limits](docs/verification.md).
 
-The local Repository tab also inspects Python source and executes its regression tests in an isolated snapshot; a real source/test pair returned **7 passed, 1 skipped**. The complete backend suite passed **234 tests and 88 subtests**, and global Ruff passed. The UFO extension is SDK-verified; an authenticated live UFO conversation has not been demonstrated.
+The local Repository tab also inspects Python source and executes its regression tests in an isolated snapshot; a real source/test pair returned **7 passed, 1 skipped**. The complete backend suite passed **240 tests and 88 subtests**, and global Ruff passed. A real programmatic UFO SDK tool call used the later 48-update checkpoint and passed 4/4 stock-repair checks. An authenticated full UFO conversation has not been demonstrated.
 
-For the presentation, use the [110-second demo script](docs/demo-script.md) and [submission fields](docs/submission.md).
+**[Watch the narrated demo](https://ankitshah009.github.io/Reflex_own_intelligence_hack/)** · [Submission fields](docs/submission.md) · [Live UFO receipt](docs/evidence/ufo-live-v4.json)
+
+For the presentation, use the [final narrated transcript](docs/demo-assets/narration.txt) and [submission fields](docs/submission.md).
 
 The [recorded v3 evidence](docs/evidence/reflex-v3.json) contains the saved training and evaluation results in JSON.
 
