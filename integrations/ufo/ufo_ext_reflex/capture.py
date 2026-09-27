@@ -74,6 +74,8 @@ async def append_event(ext: Any, turn_id: Any, event: dict[str, Any]) -> None:
     for _ in range(12):
         old = await ext.store.get(key(turn_id))
         record = dict(old) if isinstance(old, dict) else {}
+        if record.get("exported"):
+            return
         events = list(record.get("events", []))
         if any(item.get("_fingerprint") == fingerprint for item in events):
             return
@@ -118,29 +120,47 @@ async def observe(ctx: HookContext) -> HookOutcome:
                 "type": "answer", "message": bounded_text(answer),
             })
             record = await ctx.ext.store.get(key(ctx.turn.id))
-            if not isinstance(record, dict) or "review_request" not in record:
-                # Only reviews belong to this corpus; unrelated turns are not exported.
+            if isinstance(record, dict) and record.get("exported"):
+                return None
+            if not isinstance(record, dict) or not any(
+                field in record for field in ("review_request", "repair_request")
+            ):
+                # Only specialist requests belong to this corpus.
                 await ctx.ext.store.delete(key(ctx.turn.id))
                 return None
-            response = record.get("review_response")
+            if "review_request" in record and "repair_request" in record:
+                raise RuntimeError("Reflex found conflicting review and repair records in one UFO turn")
+            kind = "repair" if "repair_request" in record else "review"
+            response = record.get(f"{kind}_response")
             if not isinstance(response, dict):
                 return None
-            request = record["review_request"]
+            request = record[f"{kind}_request"]
             experience = {
-                name: request.get(name, "") for name in ("title", "diff", "context", "repo")
+                "source": "ufo", "ufo": provenance(ctx.turn),
+                "trajectory": public_events(record), "experience_id": response["experience_id"],
             }
-            experience.update({
-                "source": "ufo", "split": "train", "ufo": provenance(ctx.turn),
-                "agent_review": response["review"], "trajectory": public_events(record),
-                "experience_id": response["experience_id"],
-            })
+            if kind == "repair":
+                experience["case_id"] = request["case_id"]
+                endpoint = "/api/repairs/import"
+            else:
+                experience.update({
+                    name: request.get(name, "") for name in ("title", "diff", "context", "repo")
+                })
+                experience.update({"split": "train", "agent_review": response["review"]})
+                endpoint = "/api/experiences/import"
             # UFO gives hooks five seconds. Export is a local persistence call;
             # leave time for the final receipt write inside that runtime budget.
             async with asyncio.timeout(3.0):
-                await post("/api/experiences/import", {"experience": experience},
-                           idempotency_key=f"ufo-export:{ctx.turn.workspace_id}:{ctx.turn.id}")
+                export_prefix = "ufo-repair-export" if kind == "repair" else "ufo-export"
+                await post(endpoint, {"experience": experience},
+                           idempotency_key=f"{export_prefix}:{ctx.turn.workspace_id}:{ctx.turn.id}")
             # Keep a small receipt, not a second indefinite copy of repository content.
-            await ctx.ext.store.put(key(ctx.turn.id), {
+            receipt = {
                 "exported": True, "experience_id": response["experience_id"],
-            })
+            }
+            if "request_digest" in record:
+                receipt.update({"request_kind": kind, "request_digest": record["request_digest"]})
+            if kind == "repair":
+                receipt["case_id"] = request["case_id"]
+            await ctx.ext.store.put(key(ctx.turn.id), receipt)
     return None

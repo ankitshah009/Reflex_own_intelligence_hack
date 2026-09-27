@@ -2,9 +2,21 @@
 
 **Turn engineering work into intelligence you own.**
 
-UFO supplies observable PR-review experience. Reflex keeps the review, human correction, and dataset lineage. River learns a focused reviewer through LoRA training. The same UFO tool can then call its saved checkpoint.
+Reflex is a repair workspace for recurring engineering failures. Reproduce a broken customer flow, inspect a River-generated patch, execute behavioral checks, and turn accepted repairs into a specialist model. UFO supplies the agent runtime and observable work; Reflex retains the evidence and dataset lineage; River updates the model's weights.
+
+**Live evidence:** River repaired the sample duplicate-checkout bug from **2/4 to 4/4 passing checks in 15.4 seconds**. This is a real model response and executed patch, not a learned-model improvement. Checkpoint training and held-out results are reported separately in [verification.md](docs/verification.md).
 
 This repository implements the workflow with real provider adapters. It never substitutes a fabricated review, training run, checkpoint, or accuracy score when credentials are unavailable.
+
+## Who would use it
+
+The initial buyer hypothesis is an engineering team maintaining checkout,
+billing, inventory, or webhook integrations. Repeated incident fixes become a
+team-specific repair specialist. The product would charge for a shared team
+workspace plus metered training; pricing and customer demand are not validated.
+The useful metric is fewer developer corrections per verified repair, measured
+against the same base model with memory. A small synthetic benchmark is the
+first experiment, not proof of production savings.
 
 ## Run locally
 
@@ -16,7 +28,7 @@ cp .env.example .env
 sh scripts/dev.sh
 ```
 
-Open **http://127.0.0.1:5173**. The API listens on `127.0.0.1:8000`. The app can inspect sample patches, collect explicitly confirmed human labels, and export training data before River is connected. Inference and training require River access and consume account credits.
+Open **http://127.0.0.1:5173** for the repair workbench. The original PR-review workspace remains at **http://127.0.0.1:5173/#review**. The API listens on `127.0.0.1:8000`. Reproduction, source editing, behavioral checks, and exports run locally. Inference and training require River access and consume account credits. Executable repair checks currently require macOS with Seatbelt available.
 
 To start the services separately:
 
@@ -35,7 +47,19 @@ npm run dev
 
 Use one API worker. Jobs run in its process and persist progress in SQLite. On restart, unfinished jobs become interrupted; Reflex does not automatically repeat billable operations. A provider timeout does not establish whether remote computation stopped. Inspect the River Console before retrying an interrupted training run.
 
-## Complete the loop
+## Repair workflow
+
+1. **Reproduce:** replay duplicate checkout, inventory, refund, or cancellation events and inspect the actual resulting state.
+2. **Repair:** ask River for replacement handler code or edit it yourself. Run the same behavioral checks in a bounded local sandbox.
+3. **Accept:** review a passing patch and explicitly approve it for training. Editing invalidates earlier verification; the server rechecks acceptance.
+4. **Learn:** train SFT on an immutable snapshot of accepted repairs. A checkpoint appears only after River confirms it.
+5. **Compare:** evaluate four excluded cases against base, memory, and learned weights. Memory and learned use identical input tokens.
+
+You can bring a Python `apply(state, event)` handler with its initial state,
+events, and expected outputs. The supplied six training incidents and four
+held-out variants are clearly identified samples. See [repair scope and limits](docs/repair.md).
+
+## PR-review workflow
 
 1. **Review.** Paste a patch and repository context, or inspect a clearly labeled fictional sample. Choose base, memory, or a completed learned checkpoint. The review records only observed actions and final output.
 2. **Correct.** Confirm the decision, explain it, and select the relevant issue tags. Only explicitly confirmed training feedback qualifies for export or learning. You can also label a patch directly; it will not claim an AI reviewed it.
@@ -56,7 +80,7 @@ River receives the approved training examples and inference context. Learned che
 ```mermaid
 flowchart LR
     U[UFO tool and turn hooks] --> A[Reflex API]
-    UI[Review workspace] --> A
+    UI[Repair and review workspaces] --> A
     A --> DB[(SQLite experience ledger)]
     DB --> D[Confirmed training snapshot]
     D --> R[River training]
@@ -66,7 +90,7 @@ flowchart LR
     DB --> E
 ```
 
-The frontend uses React, TypeScript, and Vite. The backend uses FastAPI and the pinned River Python client. UFO is a separately installable extension pinned to a verified upstream source revision. Local requests never run commands from a submitted patch. If UFO executes tests, its carrier and repository permissions determine the execution boundary.
+The frontend uses React, TypeScript, and Vite. The backend uses FastAPI and the pinned River Python client. UFO is a separately installable extension pinned to a verified upstream source revision. Review requests do not execute patches. Repair requests execute restricted Python handlers in a mandatory macOS sandbox with CPU, wall-time, output, and memory observation limits; expected results stay in the parent process. If UFO independently executes repository commands, its carrier determines that execution boundary.
 
 ## Verify
 

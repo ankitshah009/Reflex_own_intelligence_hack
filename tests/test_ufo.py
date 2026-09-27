@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import importlib.util
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -12,6 +13,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from reflex.integrations.ufo import UFO_SDK_COMMIT, normalize_ufo_experience
 
@@ -304,10 +306,8 @@ async def test_non_review_turn_is_not_exported(capture_module):
     assert ext.store.records == {}
 
 
-@pytest.mark.asyncio
-async def test_reviewer_matches_api_contract_and_reuses_durable_receipt(
-    capture_module, monkeypatch
-):
+@pytest.fixture
+def tool_module(capture_module, monkeypatch):
     capture, _ = capture_module
     sdk = ModuleType("ufo.sdk.tools")
 
@@ -330,6 +330,12 @@ async def test_reviewer_matches_api_contract_and_reuses_durable_receipt(
     module = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, "reflex_tool_contract_test", module)
     spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.asyncio
+async def test_reviewer_matches_api_contract_and_reuses_durable_receipt(tool_module, monkeypatch):
+    module = tool_module
     sent = []
 
     async def post(path, payload, **kwargs):
@@ -368,3 +374,184 @@ async def test_reviewer_matches_api_contract_and_reuses_durable_receipt(
     )
     assert changed.is_error is True
     assert len(sent) == 1
+
+
+def _tool_context():
+    return SimpleNamespace(
+        ext=SimpleNamespace(store=MemoryScopedStore()),
+        turn=SimpleNamespace(id=uuid4(), workspace_id=uuid4(), conversation_id=uuid4(), agent_id=uuid4()),
+    )
+
+
+def _repair_response():
+    return {
+        "experience_id": "repair-1",
+        "repair": {"code": "def handler(event):\n    return event['value']\n",
+                   "summary": "Restore returned value", "diff": "+return event['value']",
+                   "report": {"passed": True}},
+        "model": "fixture-model", "checkpoint": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_repairer_sends_saved_case_identity_and_reuses_result(tool_module, monkeypatch):
+    ctx = _tool_context()
+    requests = []
+
+    async def post(path, payload, **kwargs):
+        requests.append((path, payload, kwargs))
+        return _repair_response()
+
+    monkeypatch.setattr(tool_module, "post", post)
+    args = tool_module.RepairInput(case_id="handler-case-1")
+    first = await tool_module.repair_code_with_reflex(ctx, args)
+    second = await tool_module.repair_code_with_reflex(ctx, args)
+    assert first == second and not first.is_error
+    assert len(requests) == 1
+    path, request, headers = requests[0]
+    assert path == "/api/repairer"
+    assert set(request) == {"case_id", "condition", "provenance", "trajectory"}
+    assert request["case_id"] == "handler-case-1" and request["condition"] == "auto"
+    assert request["provenance"]["turn_id"] == str(ctx.turn.id)
+    assert headers["idempotency_key"] == f"ufo-repair:{ctx.turn.workspace_id}:{ctx.turn.id}"
+    assert json.loads(first.content[0].text)["repair"]["report"] == {"passed": True}
+    changed = await tool_module.repair_code_with_reflex(
+        ctx, tool_module.RepairInput(case_id="handler-case-2")
+    )
+    assert changed.is_error and len(requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_repair_stop_exports_observations_and_preserves_turn_guard(
+    tool_module, capture_module, monkeypatch
+):
+    capture, sdk = capture_module
+    ctx = _tool_context()
+    requests = []
+
+    async def post(path, payload, **kwargs):
+        requests.append((path, payload, kwargs))
+        return _repair_response() if path == "/api/repairer" else {"id": "repair-1"}
+
+    monkeypatch.setattr(tool_module, "post", post)
+    monkeypatch.setattr(capture, "post", post)
+    args = tool_module.RepairInput(case_id="case-1", condition="learned", checkpoint="checkpoint-1")
+    await tool_module.repair_code_with_reflex(ctx, args)
+    stopped = SimpleNamespace(turn=ctx.turn, ext=ctx.ext, payload=sdk.Stop(answer="Candidate ready"))
+    await capture.observe(stopped)
+    await capture.observe(stopped)
+    assert len(requests) == 2
+    path, payload, kwargs = requests[1]
+    assert path == "/api/repairs/import"
+    assert kwargs["idempotency_key"] == f"ufo-repair-export:{ctx.turn.workspace_id}:{ctx.turn.id}"
+    experience = payload["experience"]
+    assert set(experience) == {"experience_id", "case_id", "source", "ufo", "trajectory"}
+    assert experience["case_id"] == "case-1" and experience["experience_id"] == "repair-1"
+    assert experience["ufo"] == requests[0][1]["provenance"]
+    assert experience["trajectory"][-1]["type"] == "answer"
+    assert requests[0][1]["checkpoint"] == "checkpoint-1"
+    receipt = await ctx.ext.store.get(capture.key(ctx.turn.id))
+    assert receipt["request_kind"] == "repair" and receipt["case_id"] == "case-1"
+    replayed = await tool_module.repair_code_with_reflex(ctx, args)
+    assert json.loads(replayed.content[0].text)["exported"] is True
+    different = await tool_module.repair_code_with_reflex(ctx, tool_module.RepairInput(case_id="case-2"))
+    review = await tool_module.review_code_with_reflex(
+        ctx, tool_module.ReviewInput(title="Review", diff="+pass")
+    )
+    assert different.is_error and review.is_error and len(requests) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first_kind", ["review", "repair"])
+async def test_specialist_reservation_prevents_mixed_concurrent_requests(
+    tool_module, monkeypatch, first_kind
+):
+    ctx = _tool_context()
+    started, finish = asyncio.Event(), asyncio.Event()
+    paths = []
+
+    async def post(path, payload, **kwargs):
+        paths.append(path)
+        started.set()
+        await finish.wait()
+        return _repair_response() if path == "/api/repairer" else {
+            "experience_id": "review-1", "review": {"decision": "APPROVE", "issues": []}
+        }
+
+    monkeypatch.setattr(tool_module, "post", post)
+    operations = {
+        "review": (tool_module.review_code_with_reflex, tool_module.ReviewInput(title="PR", diff="+pass")),
+        "repair": (tool_module.repair_code_with_reflex, tool_module.RepairInput(case_id="case-1")),
+    }
+    first_handler, first_args = operations[first_kind]
+    second_handler, second_args = operations["review" if first_kind == "repair" else "repair"]
+    in_flight = asyncio.create_task(first_handler(ctx, first_args))
+    try:
+        await asyncio.wait_for(started.wait(), timeout=1)
+        second = await second_handler(ctx, second_args)
+        assert second.is_error
+    finally:
+        finish.set()
+    assert not (await in_flight).is_error
+    assert len(paths) == 1
+
+
+@pytest.mark.asyncio
+async def test_failed_repair_can_retry_same_request_but_cannot_change_case(
+    tool_module, capture_module, monkeypatch
+):
+    capture, _ = capture_module
+    ctx = _tool_context()
+    requests = []
+
+    async def post(path, payload, **kwargs):
+        requests.append((path, payload, kwargs))
+        if len(requests) == 1:
+            raise client.ReflexUnavailable("Reflex timed out; check its job list")
+        return _repair_response()
+
+    monkeypatch.setattr(tool_module, "post", post)
+    args = tool_module.RepairInput(case_id="case-1")
+    assert (await tool_module.repair_code_with_reflex(ctx, args)).is_error
+    changed = await tool_module.repair_code_with_reflex(ctx, tool_module.RepairInput(case_id="case-2"))
+    assert changed.is_error and len(requests) == 1
+    await capture.append_event(ctx.ext, ctx.turn.id, {"type": "tool_result", "message": "Retry"})
+    assert not (await tool_module.repair_code_with_reflex(ctx, args)).is_error
+    assert requests[0] == requests[1]
+
+
+@pytest.mark.asyncio
+async def test_failed_repair_export_keeps_result_for_delivery_retry(
+    tool_module, capture_module, monkeypatch
+):
+    capture, sdk = capture_module
+    ctx = _tool_context()
+    attempts = []
+
+    async def tool_post(*args, **kwargs):
+        return _repair_response()
+
+    async def export_post(path, payload, **kwargs):
+        attempts.append(payload)
+        if len(attempts) == 1:
+            raise client.ReflexUnavailable("Cannot reach Reflex")
+        return {"id": "repair-1"}
+
+    monkeypatch.setattr(tool_module, "post", tool_post)
+    monkeypatch.setattr(capture, "post", export_post)
+    await tool_module.repair_code_with_reflex(ctx, tool_module.RepairInput(case_id="case-1"))
+    stopped = SimpleNamespace(turn=ctx.turn, ext=ctx.ext, payload=sdk.Stop(answer="Candidate ready"))
+    with pytest.raises(client.ReflexUnavailable):
+        await capture.observe(stopped)
+    saved = await ctx.ext.store.get(capture.key(ctx.turn.id))
+    assert "repair_response" in saved and not saved.get("exported")
+    await capture.observe(stopped)
+    assert attempts[0] == attempts[1]
+
+
+@pytest.mark.parametrize("invalid", [{"case_id": ""}, {"case_id": " "},
+    {"case_id": "case-1", "human_feedback": {"approved": True}},
+    {"case_id": "case-1", "condition": "human-approved"}])
+def test_repair_input_cannot_supply_labels_or_empty_case(tool_module, invalid):
+    with pytest.raises(ValidationError):
+        tool_module.RepairInput(**invalid)

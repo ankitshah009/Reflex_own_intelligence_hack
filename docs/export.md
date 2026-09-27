@@ -16,11 +16,78 @@ River says this download contains LoRA adapter weights in PEFT format. The adapt
 
 The Console download was documented but not executed during implementation. This project has not downloaded or validated any trained adapter yet.
 
+## Exact SDK handoff after training
+
+The installed SDK signature is:
+
+```python
+Model.save_weights(
+    name: str,
+    mode: str = "training",
+    timeout: float = 86400.0,
+    ttl: datetime.timedelta | None = None,
+    immutable: bool = False,
+    expected_policy_id: str | None = None,
+) -> Checkpoint
+```
+
+Reflex already invokes the following on the live model after confirmed optimizer updates:
+
+```python
+checkpoint = model.save_weights(
+    name,
+    mode="inference",
+    immutable=True,
+    timeout=600,
+)
+```
+
+The returned `Checkpoint` has `path`, `step`, `checkpoint_type`, and optional
+`policy_version` fields. Retain those fields in the run record. Use `checkpoint.path`
+to identify the matching entry in **Console → Checkpoints → Download**. The
+download action does not require creating a dedicated deployment.
+
+For replay through River, the installed sampling method accepts the same
+checkpoint directly:
+
+```python
+samples = session.sample(
+    base_model="Qwen/Qwen3.5-9B",
+    checkpoint=checkpoint.path,
+    prompt_token_ids=prompt_ids,
+    tokenizer=tokenizer,
+    num_samples=1,
+    max_tokens=2048,
+    temperature=0.0,
+    seed=42,
+    timeout=180,
+)
+```
+
+This is remote inference using the saved adapter; it consumes account usage.
+Reflex's evaluation controls execute it when authorized. It is not a local
+weight download. These signatures were verified through Python inspection
+without calling River.
+
 ## Why Reflex does not offer a direct SDK download
 
 The installed `river-client==0.11.0` exposes checkpoint save/load and inference operations, but no public weight-download/export method. Its package source, public `Client`/`Session`/`Model`/`Checkpoint` members, and generated RPC declarations were inspected. The [current Python reference](https://docs.river.ai/python-api/) also documents no download method.
 
 Consequently there is no implemented `export_checkpoint(checkpoint, destination)` helper and no invented HTTP endpoint. A downloaded JSON manifest, dataset, or `river://` address must not be labeled as exported model weights. A future direct integration needs a documented download API, authenticated artifact response, and a tested size-bounded streaming path.
+
+The independent recheck also inspected the installed protobuf service descriptor:
+`SaveWeights`, `LoadWeights`, and `SampleFromCheckpoint` exist; no checkpoint
+artifact-download RPC is declared. Console authentication and the selected
+checkpoint's download action are the remaining prerequisites for local export.
+
+## Local training preparation verified
+
+The cached `Qwen/Qwen3.5-9B` tokenizer loaded with `HF_HUB_OFFLINE=1` at revision
+`c202236235762e1c871ad0ccb60c8ee5ba337b9a`. A small repair example rendered through
+Reflex's actual chat template produced 62 aligned input/target/mask positions,
+26 supervised targets, and the expected final EOS target. This confirms local
+tokenization and completion-only SFT preparation. It does not establish remote
+training capacity, a completed optimizer update, or a downloaded adapter.
 
 ## Keep enough information to reuse the adapter
 

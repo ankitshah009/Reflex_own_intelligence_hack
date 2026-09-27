@@ -8,19 +8,37 @@ The integration is a Python extension installed in a **trusted self-hosted UFO r
 It is not a hosted UFO API client. Hosted workspace availability or permission to install
 custom Python extensions has not been established. The actual pinned UFO distribution
 and this extension have been installed in the repository-local `.cache/ufo-env`. Its
-real extension loader, SDK tool handler, lifecycle hook dispatcher, and complete example
+real extension loader, both SDK tool handlers, lifecycle hook dispatcher, and complete example
 configuration have passed the no-cloud contract check below. Actual initialization with
 that configuration reached onboarding, then refused because the default model needs
 `UFO_ANTHROPIC_API_KEY`. A full server boot and authenticated conversation remain unverified.
 
 ## What it does
 
-`review_code_with_reflex(title, diff, context, repo, condition, checkpoint)` calls Reflex's
-`POST /api/reviewer` from the UFO host. UFO continues to run its general agent; River serves
-the specialist behind Reflex. The default condition is `auto`: a new turn uses the latest
-saved checkpoint if one exists, otherwise the base model. This selects trained weights;
-it does not claim they outperform the base. Choose `learned` after a
-real checkpoint exists, optionally naming that checkpoint explicitly.
+UFO continues to run its general agent and calls either Reflex specialist from its host:
+
+| Tool | Input and result | Reflex endpoint |
+| --- | --- | --- |
+| `review_code_with_reflex` | Takes a PR title, diff, repository context, and repository name. Returns the review decision and experience ID. | `POST /api/reviewer` |
+| `repair_code_with_reflex` | Takes the `case_id` of a handler case the operator selected or created in Reflex. Returns candidate code, a diff, the execution report, and experience ID. | `POST /api/repairer` |
+
+Both tools accept `condition` (`auto`, `base`, `memory`, or `learned`) and an optional
+`checkpoint`. The default is `auto`: a new turn uses the latest saved checkpoint for that
+capability if one exists, otherwise the base model. Selecting trained weights does not
+claim they outperform the base. Choose `learned` after a real checkpoint exists,
+optionally naming it explicitly.
+
+For repair, the operator first chooses or creates a case in the Reflex repair workspace.
+UFO passes its case ID; Reflex loads the saved handler, input events, and expected results.
+The repair tool cannot supply replacement case inputs or human-approved code. It returns
+the service's candidate and actual execution report for inspection in Reflex. A returned
+candidate or passing report does not count as a human approval.
+
+Use **one Reflex specialist request per UFO turn**. Repeating an identical request reuses
+its persisted result or export receipt. A different case, condition, checkpoint, or switching
+between review and repair requires a new turn. The extension reserves the request before
+HTTP so concurrent specialist calls cannot overwrite each other's receipts. Requests carry
+stable `ufo-review:<workspace>:<turn>` or `ufo-repair:<workspace>:<turn>` idempotency keys.
 
 The extension subscribes to four actual SDK events:
 
@@ -31,12 +49,31 @@ The extension subscribes to four actual SDK events:
 | `post_tool_use_failure` | The dispatched tool's arguments and error output |
 | `stop` | The final answer |
 
-No model reasoning or compaction records are exported. Only turns that call the Reflex
-reviewer enter its corpus. Events are buffered in UFO's workspace-scoped durable store;
+No model reasoning or compaction records are exported. Only turns that call a Reflex
+specialist enter its corpus. Events are buffered in UFO's workspace-scoped durable store;
 the final export attaches them to the original Reflex experience. Identical event records
 are deduplicated for recovery. Each turn keeps at most 128 events and each text field at
 most 4096 characters, preserving the opening instruction and most recent results when full.
 This is a bounded evidence trace, not a claim to retain every byte of execution history.
+
+At `stop`, a review trace goes to `/api/experiences/import`. A repair trace goes to
+`/api/repairs/import` with exactly this envelope:
+
+```json
+{
+  "experience": {
+    "experience_id": "ID_RETURNED_BY_REPAIRER",
+    "case_id": "SELECTED_CASE_ID",
+    "source": "ufo",
+    "ufo": {"workspace_id": "...", "turn_id": "...", "thread_id": "...", "agent_id": "...", "sdk_commit": "..."},
+    "trajectory": []
+  }
+}
+```
+
+This repair import contains identity metadata and observed events only. It attaches the
+trace to the saved repair after checking the case and runtime identity; it cannot replace
+candidate code, execution results, or developer feedback.
 
 Human feedback is entered in the Reflex app. There is deliberately no tool that lets the
 agent mark its own output as human-approved. The import normalizer rejects feedback labels,
@@ -111,7 +148,7 @@ it does not replace Python package installation.
 Check entry point loading in the UFO environment, then start the actual runtime:
 
 ```sh
-.venv/bin/python -c 'from ufo_ext_reflex.manifest import manifest; from ufo_ext_reflex.pack import pack; print(manifest().tools[0].name, pack().name)'
+.venv/bin/python -c 'from ufo_ext_reflex.manifest import manifest; from ufo_ext_reflex.pack import pack; print([tool.name for tool in manifest().tools], pack().name)'
 .venv/bin/ufoctl serve
 ```
 
@@ -130,18 +167,31 @@ UI/tool trace to check that `review_code_with_reflex` was called; then open the 
 experience in Reflex and record a human correction. After training, start a new turn and
 request condition `learned` on an unseen PR.
 
+For the repair flow, select or create a handler case in Reflex first, then start a new UFO
+turn using that case's actual ID:
+
+```sh
+"$REFLEX_REPO/integrations/ufo/.runtime/client/target/debug/ufo" 'Call repair_code_with_reflex for case_id CASE_ID_FROM_REFLEX using condition auto. Show the candidate diff, execution report, experience ID, and checkpoint.'
+```
+
+Inspect the returned repair in Reflex and record the developer's correction or approval
+there. After learning from approved experiences, use a new turn and an unseen case to
+compare the base, memory, and learned conditions.
+
 UFO's local command carrier reads the host filesystem and does not enforce network egress
 in the kernel. Use UFO's documented container carrier for untrusted PR execution. Reflex's
 extension itself sends HTTP requests and observes events; it does not execute PR code.
 
 ## Failure behavior and validation
 
-Review HTTP calls have a five-second connection timeout and a 120-second response timeout.
+Review and repair HTTP calls have a five-second connection timeout and a 120-second response timeout.
 The stop hook's export has a three-second total deadline, within UFO's five-second hook budget.
 Inference is never retried automatically. Authentication failures produce an instruction
 to check the shared token. If final trajectory delivery fails, the buffered record remains
-in UFO's store; the review and pre-review trace already saved by `/api/reviewer` remain
-available in Reflex. A failed export is not a human correction or a successful training run.
+in UFO's store; the original review or repair and the trace submitted with its request remain
+available in Reflex. The request fingerprint also survives successful export, preventing a
+replayed turn from starting work on another case. A failed export is not a human correction
+or a successful training run.
 
 ```sh
 .venv/bin/python -m pytest tests/test_ufo.py -q
@@ -151,12 +201,16 @@ available in Reflex. A failed export is not a human correction or a successful t
 
 The tests cover envelope validation, label injection rejection, event limits, credential
 redaction, replay deduplication, final trace linkage, token transport, and HTTP failures.
+Repair checks also cover case identity, checkpoint forwarding, metadata-only export,
+mixed review/repair concurrency, and delivery failures that preserve the pending receipt.
 The fast unit suite uses a double at the external UFO SDK/store boundary. The separate
 `verify_runtime.py` command loads the **actual installed UFO distribution**, discovers
 the pack and extension, validates `ufo.example.toml` with UFO's actual configuration
-model, validates the tool schema, invokes its handler with a real
+model, validates both tool schemas, invokes both handlers with real
 `ToolContext`, and fires real `HookChain` events. Only HTTP responses and the workspace
-store are fixtures. It proves registration and dispatch, and makes zero model calls.
+store are fixtures. It exercises all four request/export endpoints, receipt replay, and
+the guard against mixing specialists in one turn. It proves registration and dispatch,
+and makes zero model calls; it does not prove an authenticated live UFO conversation.
 A real initialization attempt was also made in the isolated `.cache/ufo-runtime`
 directory using a fictional local owner address and no model credentials. The corrected
 configuration passed, local schema migration completed, and onboarding explicitly
