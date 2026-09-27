@@ -2,6 +2,7 @@
 
 import asyncio
 from contextlib import contextmanager
+import hashlib
 import json
 import os
 import sys
@@ -18,6 +19,7 @@ from reflex.integrations.river import (
     _load_tokenizer,
     make_rl_datum,
     make_sft_datum,
+    parse_repair,
     parse_review,
 )
 
@@ -149,6 +151,12 @@ REVIEW = json.dumps(
         "issues": [{"tag": "catch_all", "severity": "high", "message": "Catch a specific error."}],
     }
 )
+REPAIR = json.dumps(
+    {
+        "summary": "Preserve payment failures.",
+        "code": "def charge(payment):\n    return payment.process()\n",
+    }
+)
 
 
 class Tokenizer:
@@ -181,6 +189,7 @@ class RiverBoundary:
         inexact=False,
         fail_rl_backward=False,
         missing_policy=False,
+        sample_text=REVIEW,
     ):
         self.calls = []
         self.closed = 0
@@ -197,6 +206,7 @@ class RiverBoundary:
         self.inexact = inexact
         self.fail_rl_backward = fail_rl_backward
         self.missing_policy = missing_policy
+        self.sample_text = sample_text
         self.policy = SimpleNamespace(id="policy-0", parent_id=None, step=0)
         self.backward_options = []
 
@@ -243,7 +253,7 @@ class RiverBoundary:
                     for text in self.rl_outputs
                 ]
             ]
-        return [[SimpleNamespace(text=REVIEW)]]
+        return [[SimpleNamespace(text=self.sample_text)]]
 
     def forward_backward(self, batch, **kwargs):
         self.calls.append(("forward_backward", batch))
@@ -310,6 +320,139 @@ class RiverTests(unittest.TestCase):
         self.assertEqual(parsed["decision"], "REJECT")
         self.assertEqual(parsed["raw"], REVIEW)
         self.assertNotIn("internal draft", json.dumps(parsed))
+
+    def test_repair_parser_retains_complete_source_and_discards_reasoning(self):
+        raw = f"<think>private repair draft</think>\n```json\n{REPAIR}\n```"
+        parsed = parse_repair(raw, "repair-checkpoint")
+        self.assertEqual(parsed["code"], json.loads(REPAIR)["code"])
+        self.assertEqual(parsed["summary"], "Preserve payment failures.")
+        self.assertEqual(parsed["model"], "repair-checkpoint")
+        self.assertEqual(parsed["raw"], REPAIR)
+        self.assertNotIn("private repair draft", json.dumps(parsed))
+
+    def test_repair_schema_rejects_empty_extra_nontext_and_review_output(self):
+        invalid = [REVIEW, "[]", "not JSON", "<think>unfinished", None]
+        invalid += [
+            json.dumps(value)
+            for value in (
+                {"summary": "ok", "code": ""},
+                {"summary": " ", "code": "pass"},
+                {"summary": "ok", "code": ["pass"]},
+                {"summary": "ok", "code": "pass", "decision": "APPROVE"},
+            )
+        ]
+        for raw in invalid:
+            with self.subTest(raw=raw), self.assertRaises(RiverResponseError):
+                parse_repair(raw, "model")
+
+    def test_repair_source_limit_preserves_boundary_and_never_truncates(self):
+        source = "x" * 32_000
+        self.assertEqual(
+            parse_repair(json.dumps({"summary": "ok", "code": source}), "model")["code"], source
+        )
+        with self.assertRaisesRegex(RiverResponseError, "32000"):
+            parse_repair(json.dumps({"summary": "ok", "code": source + "x"}), "model")
+
+    def test_repair_base_and_checkpoint_keep_model_input_and_provenance(self):
+        boundary = RiverBoundary(sample_text=REPAIR)
+        provider = self.provider(boundary)
+        base = asyncio.run(provider.repair("repair this source"))
+        checkpoint = "river://run/sampler_weights/repair"
+        learned = asyncio.run(provider.repair("repair this source", checkpoint))
+        samples = [value for name, value in boundary.calls if name == "sample"]
+        self.assertEqual(samples[0]["prompt_token_ids"], samples[1]["prompt_token_ids"])
+        self.assertEqual(base["input_token_hash"], learned["input_token_hash"])
+        self.assertEqual(base["generation"], learned["generation"])
+        self.assertEqual(learned["tokenizer_revision"], "fixture-tokenizer-revision")
+        self.assertEqual(learned["model"], checkpoint)
+        self.assertEqual(samples[1]["checkpoint"], checkpoint)
+        self.assertEqual(learned["code"], json.loads(REPAIR)["code"])
+        self.assertEqual(boundary.closed, 2)
+        self.assertEqual(boundary.exited, 2)
+
+    def test_repair_failures_are_explicit_redacted_and_close_resources(self):
+        for boundary in (RiverBoundary(fail_sample=True), RiverBoundary(sample_text=REVIEW)):
+            with self.subTest(boundary=boundary), self.assertRaises(RiverOperationError) as error:
+                asyncio.run(self.provider(boundary).repair("repair source"))
+            self.assertNotIn("private-token", str(error.exception))
+            self.assertEqual(boundary.closed, 1)
+            self.assertEqual(boundary.exited, 1)
+
+    def test_malformed_output_retains_only_actual_input_provenance(self):
+        for operation, valid_response in (("repair", REPAIR), ("review", REVIEW)):
+            boundary = RiverBoundary(sample_text=valid_response)
+            provider = self.provider(boundary)
+            generate = getattr(provider, operation)
+            valid = asyncio.run(generate("identical model input"))
+            boundary.sample_text = "<think>private model draft</think>not JSON"
+            with self.subTest(operation=operation), self.assertRaises(RiverResponseError) as caught:
+                asyncio.run(
+                    generate("identical model input", "river://run/sampler_weights/learned")
+                )
+            submitted = [value for name, value in boundary.calls if name == "sample"][-1]
+            actual_hash = hashlib.sha256(
+                json.dumps(submitted["prompt_token_ids"], separators=(",", ":")).encode()
+            ).hexdigest()
+            metadata = vars(caught.exception)
+            self.assertEqual(
+                set(metadata),
+                {"input_token_hash", "tokenizer_revision", "base_model", "generation"},
+            )
+            self.assertEqual(caught.exception.input_token_hash, actual_hash)
+            self.assertEqual(caught.exception.input_token_hash, valid["input_token_hash"])
+            self.assertEqual(caught.exception.tokenizer_revision, valid["tokenizer_revision"])
+            self.assertEqual(caught.exception.generation, valid["generation"])
+            self.assertNotIn("private model draft", json.dumps(metadata))
+            self.assertNotIn("test-key", json.dumps(metadata))
+            self.assertNotIn("not JSON", str(caught.exception))
+            self.assertEqual(boundary.closed, 2)
+
+    def test_repair_missing_credentials_and_bad_checkpoint_never_call_sdk(self):
+        provider = RiverProvider(api_key="")
+        with patch("reflex.integrations.river.importlib.import_module") as imported:
+            with self.assertRaises(ProviderNotConfigured):
+                asyncio.run(provider.repair("source"))
+            with self.assertRaises(ValueError):
+                asyncio.run(provider.repair("source", "invalid-checkpoint"))
+            imported.assert_not_called()
+
+    def test_repair_sft_uses_source_target_without_training_hidden_reasoning(self):
+        boundary = RiverBoundary()
+        result = asyncio.run(
+            self.provider(boundary).train(
+                [
+                    {
+                        "prompt": "repair source",
+                        "completion": f"<think>private target draft</think>{REPAIR}",
+                    }
+                ],
+                name="repair-trained",
+            )
+        )
+        self.assertEqual(result["metrics"]["task_kind"], "repair")
+        self.assertEqual(result["checkpoint"], "river://run/sampler_weights/repair-trained")
+        self.assertEqual(result["metrics"]["rl_status"], "not_requested")
+        batches = [value for name, value in boundary.calls if name == "forward_backward"]
+        source_target = "".join(chr(token) for token in batches[0][0]["input_ids"])
+        self.assertIn(REPAIR, source_target)
+        self.assertNotIn("private target draft", source_target)
+        self.assertFalse(any(name == "sample" for name, _ in boundary.calls))
+
+    def test_repair_rl_and_mixed_sft_batches_are_rejected_before_remote_work(self):
+        for method, examples in (
+            ("sft+rl", [{"prompt": "repair source", "completion": REPAIR}]),
+            (
+                "sft",
+                [
+                    {"prompt": "repair source", "completion": REPAIR},
+                    {"prompt": "review source", "completion": REVIEW},
+                ],
+            ),
+        ):
+            boundary = RiverBoundary()
+            with self.subTest(method=method), self.assertRaises(ValueError):
+                asyncio.run(self.provider(boundary).train(examples, name="invalid", method=method))
+            self.assertEqual(boundary.calls, [])
 
     def test_invalid_or_incomplete_output_never_becomes_approval(self):
         invalid = [

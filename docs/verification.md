@@ -4,7 +4,7 @@ This document separates local correctness checks from a live sponsor demonstrati
 
 ## Recorded local result
 
-On 2026-09-27, the latest complete backend run completed with **122 passed and 17 subtests passed**, including 42 API journey and failure cases:
+On 2026-09-27, the latest complete backend run completed with **172 passed and 51 subtests passed** in 25.58 seconds. This includes 15 repair API integration tests and 16 repair engine tests, using actual macOS isolation, alongside the original review/provider/UFO suites:
 
 ```sh
 .venv/bin/pytest -q
@@ -18,7 +18,7 @@ cd frontend
 npm run build
 ```
 
-There was one Starlette deprecation warning about its test client's `httpx` compatibility path. It did not fail the run. These results cover the local API and provider-contract scope described below; no live River training was submitted by this run.
+There was one Starlette deprecation warning about its test client's `httpx` compatibility path. It did not fail the run. These results cover the local API and provider-contract scope described below; no River calls were submitted by this test run.
 
 ## Real tokenizer preflight
 
@@ -30,12 +30,41 @@ in the installed dependency and observing the stalled process, those probes
 were stopped. Reflex now bounds timeouts at the request boundary and downloads
 an explicit tokenizer-file snapshot before strictly local tokenizer loading.
 
-The final real preflight terminated with a sanitized `LocalEntryNotFoundError`
-because the remote snapshot was unavailable and no cached copy existed. No
-River request was made. **Real Qwen tokenization, prompt counts, and its chat
-template remain unverified in this environment.** The 25 provider tests plus
-12 subtests passed, including request timeout clamping, cache recovery and
-revision retention. Those boundary tests do not replace a successful download.
+The initial network proxy returned HTTP 403 for Hugging Face. On September 27,
+the approved network retry downloaded all six public tokenizer/config files.
+The real preflight then passed for all 38 review fixture prompts using
+`Qwen2Tokenizer`, revision `c202236235762e1c871ad0ccb60c8ee5ba337b9a`.
+Prompts contained 453–578 tokens; the 26 training prompts totaled 12,525 tokens.
+The SFT alignment check passed with 497 tokens. This preflight submitted no
+River inference or training requests. Subsequent loads use the project cache.
+
+## First live repair result
+
+At 2026-09-27 22:41 UTC, the production API completed a real River
+`Qwen/Qwen3.5-9B` repair of the fictional checkout replay case. The original
+handler passed 2/4 checks; River's generated handler passed 4/4 under the actual
+macOS sandbox. The job completed in 15.4 seconds as observed by the API poller
+(the stored repair duration was 13.554 seconds).
+
+The reproduced duplicate request created two orders, reduced widget stock to
+8, and left a 14,400-cent balance. Executing the generated repair produced one
+order, stock of 10, and a 12,000-cent balance. These are synthetic case values,
+not real customer transactions.
+
+- Job: `c528ec42-0f65-47b6-937f-109d743671ef`
+- Repair: `72a240d1-9ef5-42fb-9afe-afffd578fdfa`
+- Generated code SHA-256: `b75ac63646c7169b726c634efc3c6ac0f34d0c0ee8a7f1056a8a5d2043dd921f`
+- Exact model-input token SHA-256: `c06432de34ae50844a362d4074e3dec2c254d9dcaad258c7045701852cba9653`
+
+This establishes live code generation and execution. It does not establish a
+weight update or improvement from learning; no trained checkpoint or held-out
+learning result is claimed by this repair.
+
+All six supplied training incidents were subsequently attempted once using the
+base model. Checkout, refund, tenant checkout, distinct stock deliveries, and
+cancellation passed 4/4 checks; stock replay passed 2/4. Thus 5/6 generated
+repairs passed their complete contracts. These are training-case outcomes,
+not held-out results. None were silently marked as human-approved.
 
 ## Actual local runtime and browser checks
 

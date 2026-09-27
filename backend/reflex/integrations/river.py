@@ -30,14 +30,16 @@ class RiverOperationError(RuntimeError):
 
 
 class RiverResponseError(RiverOperationError):
-    """The model returned a result that is not a valid review."""
+    """The model returned a result that violates its requested output schema."""
 
 
 EventCallback = Callable[[dict[str, Any]], Awaitable[None]]
 
 
-def parse_review(raw: str, model: str) -> dict[str, Any]:
-    """Accept a JSON object or fenced JSON; never invent a review decision."""
+def _parse_final_json(raw: str, subject: str) -> tuple[str, Any]:
+    """Extract the final JSON response without retaining optional reasoning."""
+    if not isinstance(raw, str):
+        raise RiverResponseError(f"River {subject} output must be text containing JSON.")
     text = raw.strip()
     # Some reasoning models include a separate, closed reasoning segment.
     # Persist only the final answer, never an optional hidden reasoning segment.
@@ -45,7 +47,7 @@ def parse_review(raw: str, model: str) -> dict[str, Any]:
         _, boundary, text = text.partition("</think>")
         if not boundary:
             raise RiverResponseError(
-                "River exhausted its output before returning a review. Increase RIVER_MAX_TOKENS."
+                f"River exhausted its output before returning a {subject}. Increase RIVER_MAX_TOKENS."
             )
         text = text.strip()
     if text.startswith("```"):
@@ -56,8 +58,14 @@ def parse_review(raw: str, model: str) -> dict[str, Any]:
         value = json.loads(text)
     except (json.JSONDecodeError, TypeError):
         raise RiverResponseError(
-            "River returned invalid review JSON. Retry the review or inspect the model output format."
+            f"River returned invalid {subject} JSON. Retry the {subject} or inspect the model output format."
         ) from None
+    return text, value
+
+
+def parse_review(raw: str, model: str) -> dict[str, Any]:
+    """Accept a JSON object or fenced JSON; never invent a review decision."""
+    text, value = _parse_final_json(raw, "review")
     if (
         not isinstance(value, dict)
         or not isinstance(value.get("decision"), str)
@@ -93,6 +101,22 @@ def parse_review(raw: str, model: str) -> dict[str, Any]:
         "raw": text,
         "model": model,
     }
+
+
+def parse_repair(raw: str, model: str) -> dict[str, Any]:
+    """Require complete replacement source and a summary, never a review verdict."""
+    text, value = _parse_final_json(raw, "repair")
+    if not isinstance(value, dict) or set(value) != {"summary", "code"}:
+        raise RiverResponseError("River repair must contain exactly summary and code fields.")
+    if not isinstance(value["summary"], str) or not value["summary"].strip():
+        raise RiverResponseError("River repair is missing its summary.")
+    if not isinstance(value["code"], str) or not value["code"].strip():
+        raise RiverResponseError("River repair is missing its complete replacement code.")
+    if len(value["code"]) > 32_000:
+        raise RiverResponseError(
+            "River repair code exceeds 32000 characters. Split the source into smaller files before requesting a repair."
+        )
+    return {"summary": value["summary"], "code": value["code"], "raw": text, "model": model}
 
 
 def make_sft_datum(
@@ -337,13 +361,29 @@ class RiverProvider:
         )
 
     async def review(self, prompt: str, checkpoint: str | None = None) -> dict[str, Any]:
+        return await self._generate(prompt, checkpoint, parser=parse_review, operation="review")
+
+    async def repair(self, prompt: str, checkpoint: str | None = None) -> dict[str, Any]:
+        return await self._generate(prompt, checkpoint, parser=parse_repair, operation="repair")
+
+    async def _generate(
+        self,
+        prompt: str,
+        checkpoint: str | None,
+        *,
+        parser: Callable[[str, str], dict[str, Any]],
+        operation: str,
+    ) -> dict[str, Any]:
         if not isinstance(prompt, str) or not prompt.strip():
-            raise ValueError("Review prompt cannot be empty.")
-        if checkpoint is not None and not checkpoint.startswith("river://"):
+            raise ValueError(f"{operation.title()} prompt cannot be empty.")
+        if checkpoint is not None and (
+            not isinstance(checkpoint, str) or not checkpoint.startswith("river://")
+        ):
             raise ValueError("Checkpoint must be a River checkpoint URI.")
         sdk = self._sdk()
 
         def run() -> dict[str, Any]:
+            provenance: dict[str, Any] = {}
             try:
                 tokenizer = _load_tokenizer(self.base_model)
                 prompt_ids = tokenizer(_render_prompt(tokenizer, prompt), add_special_tokens=False)[
@@ -351,10 +391,23 @@ class RiverProvider:
                 ]
                 if len(prompt_ids) > self.max_example_tokens:
                     raise ValueError(
-                        f"Review prompt exceeds {self.max_example_tokens} tokens. Reduce repository context."
+                        f"{operation.title()} prompt exceeds {self.max_example_tokens} tokens. Reduce repository context."
                     )
+                provenance = {
+                    "input_token_hash": _token_hash(prompt_ids),
+                    "tokenizer_revision": _tokenizer_revision(tokenizer),
+                    "base_model": self.base_model,
+                    "generation": {
+                        "temperature": 0.0,
+                        "seed": 42,
+                        "max_tokens": self.max_tokens,
+                        "thinking": False,
+                    },
+                }
                 with closing(self._client(sdk)) as client:
-                    with client.session(timeout=self.timeout, project="reflex-review") as session:
+                    with client.session(
+                        timeout=self.timeout, project=f"reflex-{operation}"
+                    ) as session:
                         samples = session.sample(
                             prompt_token_ids=prompt_ids,
                             tokenizer=tokenizer,
@@ -368,24 +421,22 @@ class RiverProvider:
                         )
                         if not samples or not samples[0]:
                             raise RiverResponseError(
-                                "River returned no review sample. Check model availability and retry."
+                                f"River returned no {operation} sample. Check model availability and retry."
                             )
                         return {
-                            **parse_review(samples[0][0].text, checkpoint or self.base_model),
-                            "input_token_hash": _token_hash(prompt_ids),
-                            "tokenizer_revision": _tokenizer_revision(tokenizer),
-                            "base_model": self.base_model,
-                            "generation": {
-                                "temperature": 0.0,
-                                "seed": 42,
-                                "max_tokens": self.max_tokens,
-                                "thinking": False,
-                            },
+                            **parser(samples[0][0].text, checkpoint or self.base_model),
+                            **provenance,
                         }
+            except RiverResponseError as error:
+                # Invalid model answers still belong in the evaluation denominator.
+                # Expose only input provenance, never sampled text or credentials.
+                for attribute, value in provenance.items():
+                    setattr(error, attribute, value)
+                raise
             except (ProviderNotConfigured, RiverOperationError, ValueError):
                 raise
             except Exception as error:
-                raise self._failure("review", error) from None
+                raise self._failure(operation, error) from None
 
         return await asyncio.to_thread(run)
 
@@ -587,6 +638,8 @@ class RiverProvider:
             )
         if not 1 <= len(examples) <= 32:
             raise ValueError("SFT requires between 1 and 32 reviewed examples.")
+        task_kinds: set[str] = set()
+        validated_examples = []
         for example in examples:
             if any(
                 not isinstance(example.get(key), str) or not example[key].strip()
@@ -595,7 +648,21 @@ class RiverProvider:
                 raise ValueError(
                     "Every SFT example needs a nonempty prompt and corrected completion."
                 )
-            parse_review(example["completion"], self.base_model)
+            _, value = _parse_final_json(example["completion"], "training completion")
+            task_kind = "repair" if isinstance(value, dict) and "code" in value else "review"
+            parsed = (parse_repair if task_kind == "repair" else parse_review)(
+                example["completion"], self.base_model
+            )
+            task_kinds.add(task_kind)
+            validated_examples.append({**example, "completion": parsed["raw"]})
+        if len(task_kinds) != 1:
+            raise ValueError("Train repair and review examples in separate SFT batches.")
+        task_kind = task_kinds.pop()
+        if task_kind == "repair" and method != "sft":
+            raise ValueError(
+                "Code repair supports SFT only. Review-tag RL rewards do not evaluate code repairs."
+            )
+        examples = validated_examples
         sdk = self._sdk()
         loop = asyncio.get_running_loop()
         cancelled = threading.Event()
@@ -673,6 +740,7 @@ class RiverProvider:
                                 "steps": self.steps,
                                 "method": "sft",
                                 "batch_tokens": token_count,
+                                "task_kind": task_kind,
                             }
                         )
                         losses: list[float] = []
@@ -722,6 +790,7 @@ class RiverProvider:
                             "losses": losses,
                             "examples": len(batch),
                             "method": "sft",
+                            "task_kind": task_kind,
                             "batch_tokens": token_count,
                             "training_tokens": token_count * len(losses),
                             "learning_rate": self.learning_rate,

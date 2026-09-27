@@ -112,6 +112,13 @@ def create_app(db_path: str | None = None, provider: Any = None) -> FastAPI:
                     error="Server restarted. Partial results are preserved; this evaluation was not retried.",
                 )
                 db.save("evaluations", artifact)
+        for artifact in db.list("repair_evaluations"):
+            if artifact.get("status") == "running":
+                artifact.update(
+                    status="interrupted",
+                    error="Server restarted. Partial repair evaluation results are preserved.",
+                )
+                db.save("repair_evaluations", artifact)
         yield
         for task in tuple(tasks):
             task.cancel()
@@ -812,6 +819,9 @@ def create_app(db_path: str | None = None, provider: Any = None) -> FastAPI:
             headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
         )
 
+    from reflex.repair_routes import mount_repair_routes
+
+    mount_repair_routes(app, db, river, launch, emit, need_river, check_integration_auth)
     return app
 
 
