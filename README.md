@@ -4,7 +4,13 @@
 
 Reflex is a repair workspace for recurring engineering failures. Reproduce a broken customer flow, inspect a River-generated patch, execute behavioral checks, and turn accepted repairs into a specialist model. UFO supplies the agent runtime and observable work; Reflex retains the evidence and dataset lineage; River updates the model's weights.
 
-**Live evidence:** River repaired the sample duplicate-checkout bug from **2/4 to 4/4 passing checks in 15.4 seconds**. This is a real model response and executed patch, not a learned-model improvement. Checkpoint training and held-out results are reported separately in [verification.md](docs/verification.md).
+**Live evidence:** River repaired the sample duplicate-checkout bug from **2/4 to 4/4 passing checks in 15.4 seconds**, then saved **`reflex-repair-v3-20260927` after 16 confirmed weight updates on 24 verified examples**. The completed held-out comparison is **base 4/4 · memory 4/4 · learned 4/4**, with matching memory/learned prompts. All three reached this small benchmark's ceiling: **no accuracy gain was measured**. [Full receipts and limits](docs/verification.md).
+
+The local Repository tab also inspects Python source and executes its regression tests in an isolated snapshot; a real source/test pair returned **7 passed, 1 skipped**. The complete backend suite passed **234 tests and 88 subtests**, and global Ruff passed. The UFO extension is SDK-verified; an authenticated live UFO conversation has not been demonstrated.
+
+For the presentation, use the [110-second demo script](docs/demo-script.md) and [submission fields](docs/submission.md).
+
+The [recorded v3 evidence](docs/evidence/reflex-v3.json) contains the saved training and evaluation results in JSON.
 
 This repository implements the workflow with real provider adapters. It never substitutes a fabricated review, training run, checkpoint, or accuracy score when credentials are unavailable.
 
@@ -52,12 +58,14 @@ Use one API worker. Jobs run in its process and persist progress in SQLite. On r
 1. **Reproduce:** replay duplicate checkout, inventory, refund, or cancellation events and inspect the actual resulting state.
 2. **Repair:** ask River for replacement handler code or edit it yourself. Run the same behavioral checks in a bounded local sandbox.
 3. **Accept:** review a passing patch and explicitly approve it for training. Editing invalidates earlier verification; the server rechecks acceptance.
-4. **Learn:** train SFT on an immutable snapshot of accepted repairs. A checkpoint appears only after River confirms it.
+4. **Learn:** train SFT on an immutable snapshot of accepted repairs and machine-verified generated samples. Provenance distinguishes those two sources. A checkpoint appears only after River confirms it.
 5. **Compare:** evaluate four excluded cases against base, memory, and learned weights. Memory and learned use identical input tokens.
 
 You can bring a Python `apply(state, event)` handler with its initial state,
 events, and expected outputs. The supplied six training incidents and four
-held-out variants are clearly identified samples. See [repair scope and limits](docs/repair.md).
+held-out variants are clearly identified samples. The generated curriculum produced 19 verified repairs from 23 River requests across 24 attempted tasks. Those variants come from six templates. Together with five operator-accepted repairs, they supplied the 24-example v3 training set. See [repair scope and limits](docs/repair.md).
+
+The **Repository** tab selects a local `backend/**/*.py` source file and a `tests/**/*.py` test file, reproduces the selected tests, and lets you inspect and verify a candidate patch. Tests run against a bounded snapshot; the original working files are preserved. The completed learning experiment above used event handlers, so it does not establish learned-model improvement on repository tasks.
 
 ## PR-review workflow
 

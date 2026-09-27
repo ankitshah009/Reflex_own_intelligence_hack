@@ -8,6 +8,7 @@ expected answers stay in the parent process.
 from __future__ import annotations
 
 import ast
+import ctypes
 import difflib
 import hashlib
 import json
@@ -64,6 +65,17 @@ _ALLOWED_ATTRIBUTES = {
 
 # This trusted worker receives no expected outputs and never passes its own
 # modules, input payload, or result accumulator into the candidate namespace.
+_LAUNCHER = r'''
+import os, sys
+# This is a fresh interpreter created by posix_spawn, not a forked copy of the
+# multithreaded API. Close even explicitly inheritable descriptors before exec.
+descriptors = [int(name) for name in os.listdir("/dev/fd") if name.isdecimal()]
+os.closerange(3, max(descriptors, default=2) + 1)
+os.setsid()
+os.chdir("/")
+os.execv(sys.argv[1], sys.argv[1:])
+'''
+
 _WORKER = r'''
 import builtins, errno, json, os, resource, socket, sys
 resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
@@ -235,14 +247,47 @@ def _terminate(process: subprocess.Popen) -> None:
         process.wait(timeout=1)
 
 
+class _ProcTaskInfo(ctypes.Structure):
+    # macOS SDK sys/proc_info.h: struct proc_taskinfo (PROC_PIDTASKINFO = 4).
+    _fields_ = [
+        (name, ctypes.c_uint64) for name in (
+            "virtual_size", "resident_size", "total_user", "total_system", "threads_user", "threads_system"
+        )
+    ] + [(name, ctypes.c_int32) for name in (
+        "policy", "faults", "pageins", "cow_faults", "messages_sent", "messages_received",
+        "syscalls_mach", "syscalls_unix", "csw", "threadnum", "numrunning", "priority",
+    )]
+
+
+@lru_cache(maxsize=1)
+def _memory_reader():
+    library = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
+    query = library.proc_pidinfo
+    query.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_int]
+    query.restype = ctypes.c_int
+    return query
+
+
+def _resident_memory_kib(pid: int) -> int | None:
+    info = _ProcTaskInfo()
+    size = ctypes.sizeof(info)
+    if _memory_reader()(pid, 4, 0, ctypes.byref(info), size) != size:
+        return None
+    return (info.resident_size + 1023) // 1024
+
+
 def _run(payload: dict[str, Any]) -> dict[str, Any]:
     executable, profile = _profile()
     raw = _json_bytes(payload)
+    # cwd/start_new_session/close_fds=True force fork on macOS. gRPC owns native
+    # threads in this process, so do that setup in a fresh trusted interpreter.
+    # No candidate input is read until sandbox-exec and the worker limits apply.
+    launcher = [executable, "-I", "-S", "-B", "-c", _LAUNCHER]
     process = subprocess.Popen(
-        [shutil.which("sandbox-exec"), "-p", profile, executable, "-I", "-S", "-B", "-c", _WORKER],
+        [*launcher, shutil.which("sandbox-exec"), "-p", profile, executable, "-I", "-S", "-B", "-c", _WORKER],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "HOME": "/nonexistent"},
-        cwd="/", start_new_session=True, close_fds=True,
+        close_fds=False,
     )
     selector = selectors.DefaultSelector()
     output = {"stdout": bytearray(), "stderr": bytearray()}
@@ -257,15 +302,10 @@ def _run(payload: dict[str, Any]) -> dict[str, Any]:
             if time.monotonic() >= deadline:
                 raise RepairExecutionError("Handler exceeded the 3-second execution limit; its process group was terminated")
             if time.monotonic() >= next_memory_check and process.poll() is None:
-                memory = subprocess.run(
-                    ["/bin/ps", "-o", "rss=", "-p", str(process.pid)],
-                    capture_output=True, text=True, timeout=0.3,
-                    env={"PATH": "/usr/bin:/bin", "LANG": "C"},
-                )
-                measured = memory.stdout.strip()
-                if (memory.returncode or not measured.isdigit()) and process.poll() is None:
+                measured = _resident_memory_kib(process.pid)
+                if measured is None and process.poll() is None:
                     raise RepairExecutionError("Resident-memory monitoring is unavailable; the candidate process was terminated")
-                if measured.isdigit() and int(measured) > MAX_RSS_KIB:
+                if measured is not None and measured > MAX_RSS_KIB:
                     raise RepairExecutionError("Handler exceeded the 256 MiB resident-memory threshold; its process group was terminated")
                 next_memory_check = time.monotonic() + 0.1
             for key, _ in selector.select(timeout=min(0.05, max(0, deadline - time.monotonic()))):

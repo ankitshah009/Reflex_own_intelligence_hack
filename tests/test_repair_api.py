@@ -194,7 +194,13 @@ def trained_checkpoint(client):
 
 def test_manual_reproduction_acceptance_training_and_held_out_replay(client, provider):
     initial = client.get("/api/repairs/state").json()
-    assert initial["stats"] == {"attempts": 0, "accepted": 0, "checkpoints": 0}
+    assert initial["stats"] == {
+        "attempts": 0,
+        "accepted": 0,
+        "checkpoints": 0,
+        "eligible": 0,
+        "machine_verified": 0,
+    }
     assert initial["provider"]["verified"] is False
     assert "_checks" not in json.dumps(initial["cases"])
     assert "_reference_code" not in json.dumps(initial["cases"])

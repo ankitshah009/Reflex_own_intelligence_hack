@@ -4,7 +4,7 @@ export type RepairCase = {
   id: string; title: string; service: string; description: string; filename: string;
   source: string; initial_state: JsonObject; actions: RepairAction[];
   reproduction: JsonObject[]; expected_behavior: string | string[];
-  source_kind: 'sample' | 'manual'; language: string;
+  source_kind: 'sample' | 'manual' | 'generated'; language: string;
 };
 export type RepairReport = {
   status: string; passed: number | boolean; total: number;
@@ -17,6 +17,8 @@ export type Repair = {
   summary: string; diff: string; report: RepairReport; condition: string;
   model?: string; checkpoint?: string; prompt_hash?: string;
   human_feedback?: { reason: string; code: string; approved: boolean };
+  machine_feedback?: { reason: string; code: string; approved: boolean; source?: string };
+  curriculum_job_id?: string;
   created_at: string; origin: 'river' | 'manual';
 };
 export type RepairCheckpoint = {
@@ -34,7 +36,8 @@ export type RepairState = {
   cases: RepairCase[]; repairs: Repair[]; checkpoints: RepairCheckpoint[];
   evaluations: RepairEvaluation[]; jobs: RepairJob[];
   provider: { configured: boolean; verified: boolean; model?: string };
-  stats: { attempts: number; accepted: number; checkpoints: number };
+  stats: { attempts: number; accepted: number; checkpoints: number; eligible?: number; machine_verified?: number };
+  training_error?: string | null;
 };
 export type RepairEvent = { type: string; message?: string; timestamp?: string; created_at?: string; [key: string]: unknown };
 export type RepairJob = { id: string; status: string; kind?: string; payload?: { case_id?: string; [key: string]: unknown }; result?: unknown; error?: string; events?: RepairEvent[] };

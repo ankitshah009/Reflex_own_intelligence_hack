@@ -9,6 +9,7 @@ import sys
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
+from uuid import UUID
 
 from reflex.integrations.river import (
     ProviderNotConfigured,
@@ -195,6 +196,8 @@ class RiverBoundary:
         self.closed = 0
         self.exited = 0
         self.model_id = "test-model"
+        self.session_id = "test-session"
+        self.training_run_id = "test-run"
         self.fail_backward = fail_backward
         self.fail_save = fail_save
         self.fail_sample = fail_sample
@@ -262,7 +265,23 @@ class RiverBoundary:
             raise RuntimeError("private-token must never be exposed")
         return SimpleNamespace(metrics={"loss": 1.2})
 
+    def submit_forward_backward(self, batch, **kwargs):
+        self.calls.append(("submit_forward_backward", kwargs))
+        return SimpleNamespace(
+            request_id=f"backward-{self.policy.step + 1}",
+            result=lambda: self.forward_backward(batch, **kwargs),
+        )
+
+    def submit_optim_step(self, **kwargs):
+        self.calls.append(("submit_optim_step", kwargs))
+        return SimpleNamespace(
+            request_id=f"optim-{self.policy.step + 1}",
+            result=lambda: self.optim_step(**kwargs),
+        )
+
     def optim_step(self, **kwargs):
+        # River rejects arbitrary labels with INVALID_ARGUMENT before any update.
+        UUID(kwargs["idempotency_key"])
         self.calls.append(("optim_step", kwargs))
         self.policy = SimpleNamespace(
             id=f"policy-{self.policy.step + 1}", parent_id=self.policy.id, step=self.policy.step + 1
@@ -280,7 +299,9 @@ class RiverBoundary:
 
 class RiverTests(unittest.TestCase):
     def setUp(self):
-        self.env = patch.dict(os.environ, {"RIVER_TRAIN_MAX_STEPS": "2"})
+        self.env = patch.dict(
+            os.environ, {"RIVER_TRAIN_MAX_STEPS": "2", "RIVER_TRAIN_BATCH_SIZE": "2"}
+        )
         self.env.start()
         self.tokenizer = patch(
             "reflex.integrations.river._load_tokenizer", return_value=Tokenizer()
@@ -528,7 +549,11 @@ class RiverTests(unittest.TestCase):
             [
                 "preparing",
                 "training_started",
+                "training_operation",
+                "training_operation",
                 "training_step",
+                "training_operation",
+                "training_operation",
                 "training_step",
                 "saving",
                 "checkpoint_saved",
@@ -539,6 +564,158 @@ class RiverTests(unittest.TestCase):
         self.assertEqual(boundary.closed, 1)
         self.assertEqual(boundary.exited, 1)
         self.assertEqual(sum(name == "save_weights" for name, _ in boundary.calls), 1)
+        operations = [event for event in events if event["type"] == "training_operation"]
+        self.assertEqual(
+            [event["request_id"] for event in operations],
+            ["backward-1", "optim-1", "backward-2", "optim-2"],
+        )
+        self.assertEqual([event["confirmed_steps"] for event in operations], [0, 0, 1, 1])
+        self.assertTrue(all(event["session_id"] == "test-session" for event in operations))
+
+    def test_training_defaults_cover_maximum_dataset_with_small_batches(self):
+        with patch.dict(os.environ, {}, clear=True):
+            provider = RiverProvider(api_key="test-key")
+        self.assertEqual(provider.steps, 16)
+        self.assertEqual(provider.batch_size, 2)
+
+    def test_minibatches_cycle_in_order_with_exact_coverage_and_token_metrics(self):
+        boundary = RiverBoundary()
+        provider = self.provider(boundary)
+        provider.steps = 4
+        events = []
+
+        async def receive(event):
+            events.append(event)
+
+        examples = [
+            {"prompt": "context " + "x" * index, "completion": REPAIR} for index in range(5)
+        ]
+        result = asyncio.run(provider.train(examples, name="minibatches", on_event=receive))
+        steps = [event for event in events if event["type"] == "training_step"]
+        self.assertEqual([step["example_indices"] for step in steps], [[0, 1], [2, 3], [4], [0, 1]])
+        self.assertEqual([step["epoch"] for step in steps], [1, 1, 1, 2])
+        batches = [value for name, value in boundary.calls if name == "forward_backward"]
+        self.assertEqual([len(batch) for batch in batches], [2, 2, 1, 2])
+        self.assertEqual(len(result["input_token_hashes"]), len(examples))
+        metrics = result["metrics"]
+        self.assertEqual(
+            metrics["training_tokens"],
+            sum(len(datum["input_ids"]) for batch in batches for datum in batch),
+        )
+        self.assertEqual(
+            metrics["supervised_tokens"],
+            sum(sum(datum["weights"]) for batch in batches for datum in batch),
+        )
+        self.assertEqual(metrics["training_tokens"], sum(step["batch_tokens"] for step in steps))
+        self.assertEqual(metrics["unique_examples_covered"], 5)
+        self.assertEqual(metrics["examples_processed"], 7)
+        self.assertEqual(metrics["passes"], 7 / 5)
+        self.assertEqual(metrics["completed_passes"], 1)
+        self.assertEqual(metrics["batch_size"], 2)
+        self.assertEqual(metrics["batches_per_pass"], 3)
+        self.assertEqual(len(metrics["sft_history"]), 4)
+        self.assertGreater(metrics["dataset_tokens"], metrics["batch_tokens"])
+        # The token cap applies to each submission, not the entire frozen corpus.
+        provider.max_batch_tokens = metrics["batch_tokens"]
+        repeated = asyncio.run(provider.train(examples, name="per-batch-cap"))
+        self.assertEqual(repeated["metrics"]["training_tokens"], metrics["training_tokens"])
+        provider.max_batch_tokens -= 1
+        calls_before = len(boundary.calls)
+        with self.assertRaisesRegex(ValueError, "RIVER_MAX_BATCH_TOKENS"):
+            asyncio.run(provider.train(examples, name="over-batch-cap"))
+        self.assertEqual(len(boundary.calls), calls_before)
+
+    def test_insufficient_steps_reject_before_remote_model_creation(self):
+        boundary = RiverBoundary()
+        provider = self.provider(boundary)
+        examples = [{"prompt": "context", "completion": REPAIR}] * 5
+        with self.assertRaisesRegex(ValueError, "Set at least 3 steps"):
+            asyncio.run(provider.train(examples, name="incomplete-coverage"))
+        self.assertEqual(boundary.calls, [])
+
+    def test_training_poll_failure_retains_stage_ids_and_enum_without_private_details(self):
+        from river_client.types import RiverConnectionError
+
+        for stage, method, request_id in (
+            ("forward_backward_wait", "forward_backward", "backward-1"),
+            ("optim_step_wait", "optim_step", "optim-1"),
+        ):
+            boundary = RiverBoundary()
+            events = []
+
+            async def receive(event):
+                events.append(event)
+
+            error = RiverConnectionError(
+                "private-token",
+                status_code="PERMISSION_DENIED",
+                details="private prompt",
+                original_error=RuntimeError("private secret"),
+            )
+            with (
+                self.subTest(stage=stage),
+                patch.object(boundary, method, side_effect=error),
+                self.assertRaises(RiverOperationError) as caught,
+            ):
+                asyncio.run(
+                    self.provider(boundary).train(
+                        [{"prompt": "abc", "completion": REVIEW}],
+                        name="failed",
+                        on_event=receive,
+                    )
+                )
+            diagnostic = caught.exception.diagnostics
+            self.assertEqual(
+                diagnostic,
+                {
+                    "operation": "training",
+                    "error_type": "RiverConnectionError",
+                    "cause_type": "RuntimeError",
+                    "grpc_status": "PERMISSION_DENIED",
+                    "stage": stage,
+                    "confirmed_steps": 0,
+                    "step": 1,
+                    "session_id": "test-session",
+                    "model_id": "test-model",
+                    "training_run_id": "test-run",
+                    "request_id": request_id,
+                },
+            )
+            self.assertEqual(events[-1], {"type": "training_diagnostic", **diagnostic})
+            self.assertIn(stage, str(caught.exception))
+            self.assertIn("PERMISSION_DENIED", str(caught.exception))
+            self.assertNotIn("private", str(caught.exception) + json.dumps(events))
+            self.assertFalse(
+                any(event["type"] in {"training_step", "checkpoint_saved"} for event in events)
+            )
+            self.assertFalse(any(name == "save_weights" for name, _ in boundary.calls))
+            self.assertEqual(boundary.closed, 1)
+            self.assertEqual(boundary.exited, 1)
+
+    def test_failure_diagnostics_ignore_unrecognized_status_and_nonwhitelisted_context(self):
+        error = RuntimeError("secret message")
+        error.status_code = "secret status"
+        failure = RiverProvider._failure(
+            "training",
+            error,
+            {
+                "stage": "forward_backward_wait",
+                "confirmed_steps": 0,
+                "request_id": "contains secret spaces",
+                "prompt": "private prompt",
+                "api_key": "secret-key",
+            },
+        )
+        self.assertEqual(
+            failure.diagnostics,
+            {
+                "operation": "training",
+                "error_type": "RuntimeError",
+                "stage": "forward_backward_wait",
+                "confirmed_steps": 0,
+            },
+        )
+        self.assertNotIn("secret", str(failure) + json.dumps(failure.diagnostics))
 
     def test_backward_failure_does_not_update_or_save_and_releases_session(self):
         boundary = RiverBoundary(fail_backward=True)

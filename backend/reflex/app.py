@@ -822,6 +822,12 @@ def create_app(db_path: str | None = None, provider: Any = None) -> FastAPI:
     from reflex.repair_routes import mount_repair_routes
 
     mount_repair_routes(app, db, river, launch, emit, need_river, check_integration_auth)
+    from reflex.curriculum_routes import mount_curriculum_routes
+
+    mount_curriculum_routes(app, db, river, launch, emit, need_river)
+    from reflex.repository_routes import mount_repository_routes
+
+    mount_repository_routes(app, db, river, launch, emit, need_river)
     return app
 
 

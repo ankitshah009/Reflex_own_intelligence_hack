@@ -140,6 +140,29 @@ def mount_repair_routes(app: FastAPI, db, river, launch, emit, need_river, check
         examples, seen = [], {}
         for repair in db.list("repairs"):
             feedback = repair.get("human_feedback") or {}
+            feedback_source = "operator_accepted"
+            if not feedback.get("approved"):
+                feedback = repair.get("machine_feedback") or {}
+                feedback_source = "river_generated_execution_verified"
+                if feedback.get("approved"):
+                    job_id = feedback.get("curriculum_job_id")
+                    job = db.get("jobs", job_id) if isinstance(job_id, str) else None
+                    report = repair.get("accepted_report") or {}
+                    isolation = report.get("isolation") or {}
+                    if (
+                        feedback.get("source") != feedback_source
+                        or job is None
+                        or job.get("kind") != "repair_curriculum"
+                        or job_id != repair.get("job_id")
+                        or feedback.get("code") != repair.get("agent_code")
+                        or feedback.get("code") != repair.get("code")
+                        or repair.get("baseline_report", {}).get("status") != "failed"
+                        or not isinstance(isolation, dict)
+                        or isolation.get("enforced") is not True
+                    ):
+                        raise HTTPException(
+                            422, "Generated repair provenance is invalid. Generate and verify the repair again before training."
+                        )
             if (
                 not feedback.get("approved")
                 or repair.get("accepted_report", {}).get("status") != "passed"
@@ -162,6 +185,7 @@ def mount_repair_routes(app: FastAPI, db, river, launch, emit, need_river, check
             examples.append(
                 {
                     "experience_id": repair["id"],
+                    "feedback_source": feedback_source,
                     "case_id": case["id"],
                     "source_fingerprint": identity,
                     "prompt": build_repair_prompt(case),
@@ -238,12 +262,19 @@ def mount_repair_routes(app: FastAPI, db, river, launch, emit, need_river, check
         repairs = db.list("repairs")
         checkpoints = db.list("repair_checkpoints")
         jobs = [job for job in db.list("jobs") if job["kind"].startswith(("repair", "ufo_repair"))]
+        training_error = None
+        try:
+            eligible = dataset()
+        except HTTPException as error:
+            eligible = []
+            training_error = str(error.detail)
         return {
             "cases": [public_case(case) for case in [*db.list("repair_cases"), *training_cases()]],
             "repairs": repairs,
             "checkpoints": checkpoints,
             "evaluations": db.list("repair_evaluations"),
             "jobs": jobs,
+            "training_error": training_error,
             "provider": {
                 "configured": river.configured,
                 "model": river.base_model,
@@ -255,6 +286,11 @@ def mount_repair_routes(app: FastAPI, db, river, launch, emit, need_river, check
             },
             "stats": {
                 "attempts": len(repairs),
+                "eligible": len(eligible),
+                "machine_verified": sum(
+                    row.get("feedback_source") == "river_generated_execution_verified"
+                    for row in eligible
+                ),
                 "accepted": sum(
                     bool(row.get("human_feedback", {}).get("approved")) for row in repairs
                 ),

@@ -25,6 +25,13 @@ samples and never presented as real incidents, revenue, or customer traffic.
 The UI executes the candidate handler to obtain its preview state; it cannot
 manufacture a successful repair or a measured learning improvement.
 
+The Repository tab also accepts a local Python source file under `backend/`
+and its regression-test file under `tests/`. It captures a snapshot, runs pytest
+in isolation, and retains candidate code, a diff, and execution evidence without
+changing the original working files. A real source/test pair returned 7 passed
+and 1 skipped; the repository-specific suite passed 30 tests. The completed
+training experiment below used event handlers, not repository repairs.
+
 ## End-to-end evidence required
 
 1. Reproduce a real failing assertion from the supplied handler.
@@ -45,15 +52,23 @@ Inference/training are explicit operations. Jobs stream confirmed events;
 interrupted jobs are retained and never automatically resubmitted. Partial
 evaluation evidence survives failure. No numeric latency or cost improvement is
 claimed before measurement. Live operations consume River credits. The default
-SFT workload is four steps on at most 32 examples, subject to token limits;
-these workload limits are not a dollar cap. No dedicated deployment is created.
+SFT workload defaults to 16 steps with minibatches of two examples, on at most
+32 examples and subject to token limits. Configuration supports a bounded
+longer run. These workload limits are not a dollar cap. No dedicated deployment
+is created.
 
 ## Verification status
 
-River authentication and model access were checked successfully after the key
-was supplied: the account includes `Qwen/Qwen3.5-9B`. That check submitted no
-inference or training. The tokenizer is now downloaded and verified. A real
-River checkout repair completed in 15.4 seconds, changing the executed outcome
-from 2/4 to 4/4 passing checks. The repair API has 15 passing integration tests
-using the real local sandbox and fake River I/O. No checkpoint or learning
-improvement is implied by those results; see `verification.md` for live evidence.
+The tokenizer is downloaded and verified. A real `Qwen/Qwen3.5-9B` checkout
+repair completed in 15.4 seconds, changing the executed outcome from 2/4 to
+4/4 passing checks. River then saved `reflex-repair-v3-20260927` after 16
+confirmed SFT weight updates on 24 examples: five operator-accepted repairs
+and 19 machine-verified generated repairs. No RL steps ran.
+
+The completed four-case held-out replay produced **base 4/4, memory 4/4,
+learned 4/4**, with identical memory/learned inputs. All three reached this
+small benchmark's ceiling; no accuracy improvement was measured. Earlier
+failed training attempts and this v3 result remain recorded. The complete
+backend suite passed 234 tests and 88 subtests in 89.94 seconds; global Ruff
+passed. The UFO extension is SDK-verified, with no authenticated live UFO
+conversation claimed. See [verification.md](verification.md) for receipts.

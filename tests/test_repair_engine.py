@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -9,10 +10,13 @@ import time
 import unittest
 from unittest.mock import patch
 
+import grpc
+
 from reflex.repair_cases import get_case, held_out_cases, public_case, training_cases
 from reflex.repair_engine import (
     RepairExecutionError,
     _profile,
+    _resident_memory_kib,
     _run,
     _validate_code,
     build_repair_prompt,
@@ -151,6 +155,58 @@ class RealSandboxTests(unittest.TestCase):
         for call in popen.call_args_list:
             self.assertNotIn("REPAIR_TEST_CREDENTIAL", call.kwargs["env"])
 
+    def test_launcher_closes_inherited_descriptors_and_creates_private_session_without_fork(self):
+        read_fd, write_fd = os.pipe()
+        os.set_inheritable(read_fd, True)
+        worker = (
+            "import errno, json, os\n"
+            "try:\n"
+            f"    os.fstat({read_fd})\n"
+            "    closed = False\n"
+            "except OSError as exc:\n"
+            "    closed = exc.errno == errno.EBADF\n"
+            "print(json.dumps({'fd_closed': closed, 'cwd': os.getcwd(), "
+            "'private_session': os.getsid(0) == os.getpid()}))\n"
+        )
+        try:
+            with patch("reflex.repair_engine._WORKER", worker), patch(
+                "subprocess._fork_exec", side_effect=AssertionError("Repair execution must use posix_spawn")
+            ):
+                result = _run({})
+            self.assertEqual(result, {"fd_closed": True, "cwd": "/", "private_session": True})
+        finally:
+            os.close(read_fd)
+            os.close(write_fd)
+
+    def test_direct_memory_reader_observes_current_process(self):
+        self.assertGreater(_resident_memory_kib(os.getpid()), 0)
+
+    def test_parallel_repairs_with_active_grpc_threads_never_fork(self):
+        # A real local gRPC server exercises the native thread machinery without
+        # credentials, remote calls, or billable River operations.
+        with ThreadPoolExecutor(max_workers=2) as rpc_pool, ThreadPoolExecutor(max_workers=3) as repairs:
+            server = grpc.server(rpc_pool)
+            server.add_generic_rpc_handlers((grpc.method_handlers_generic_handler(
+                "repair.Test", {"Ping": grpc.unary_unary_rpc_method_handler(lambda request, context: b"pong")}
+            ),))
+            port = server.add_insecure_port("127.0.0.1:0")
+            server.start()
+            channel = grpc.insecure_channel(f"127.0.0.1:{port}")
+            try:
+                grpc.channel_ready_future(channel).result(timeout=3)
+                ping = channel.unary_unary("/repair.Test/Ping")
+                self.assertEqual(ping(b"ping", timeout=3), b"pong")
+                with patch("subprocess._fork_exec", side_effect=AssertionError("Repair execution must use posix_spawn")):
+                    futures = [repairs.submit(execute_case, case, case["_reference_code"]) for case in training_cases()]
+                    for future in futures:
+                        self.assertEqual(ping(b"ping", timeout=3), b"pong")
+                        result = future.result(timeout=6)
+                        self.assertEqual(result["status"], "passed", result)
+                        self.assertTrue(result["isolation"]["enforced"])
+            finally:
+                channel.close()
+                server.stop(0).wait(timeout=3)
+
     def test_infinite_handler_is_terminated_within_bounded_time(self):
         code = "def apply(state, event):\n    while True:\n        pass\n"
         start = time.monotonic()
@@ -169,11 +225,17 @@ class RealSandboxTests(unittest.TestCase):
 
     def test_unavailable_memory_observation_fails_closed_and_terminates_candidate(self):
         code = "def apply(state, event):\n    while True:\n        pass\n"
-        unavailable = subprocess.CompletedProcess(args=["ps"], returncode=1, stdout="", stderr="unavailable")
-        with patch("reflex.repair_engine.subprocess.run", return_value=unavailable):
+        with patch("reflex.repair_engine._resident_memory_kib", return_value=None):
             result = execute_case(training_cases()[0], code)
         self.assertEqual(result["status"], "error")
         self.assertIn("memory monitoring is unavailable", result["checks"][0]["detail"])
+
+    def test_excessive_memory_observation_terminates_candidate(self):
+        code = "def apply(state, event):\n    while True:\n        pass\n"
+        with patch("reflex.repair_engine._resident_memory_kib", return_value=262_145):
+            result = execute_case(training_cases()[0], code)
+        self.assertEqual(result["status"], "error")
+        self.assertIn("256 MiB resident-memory threshold", result["checks"][0]["detail"])
 
 
 if __name__ == "__main__":
