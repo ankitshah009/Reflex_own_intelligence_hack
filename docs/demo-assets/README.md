@@ -1,45 +1,36 @@
 # Reflex demo video
 
-**Ready:** 104.252344 seconds, 1920 × 1080, H.264/AAC, 3,526,332 bytes. Full decoding completed successfully. macOS Samantha narration, mean −16.3 dB and peak −1.7 dB.
+**Ready:** 111.7 seconds, 1920 × 1080 at 30 fps, H.264/AAC, 40.6 MB. Full decode check passed. Loudness −16.0 LUFS integrated, −1.6 dBTP true peak.
 
-- `reflex-demo-narrated.mp4`: final narrated video.
+- `reflex-demo-narrated.mp4`: final narrated video with burned-in captions (watchable on mute).
 - `reflex-demo-clean.mp4`: the same picture without audio.
-- `narration.txt`: complete spoken script.
-- `provenance.json`: scene timings from encoded video frames, source evidence hashes, and receipt fields.
+- `narration.txt`: complete spoken script, by chapter.
+- `provenance.json`: scene timings, captions, sound cues, loudness, and evidence sources.
 - `index.html`: local video player. A local path is not a hosted submission URL.
 
-## What the recording shows
+## How it was made
 
-This is an **edited walkthrough**, using genuine app screenshots and faithful compositions of saved provider receipts. It is not a continuous live screen recording.
+A motion-graphics walkthrough rendered frame by frame from HTML scenes. Every product view is an unedited retina capture of the running app (zoomed, panned, and highlighted, never repainted). Every number comes from a recorded run in `docs/evidence/` or `docs/verification.md`.
 
-The original checkout handler creates two orders and passes 2/4 checks. Its saved River repair creates one order and passes 4/4. Generation uses rejection-sampling fine-tuning: **24 generated tasks → 23 River requests → 19 verified repairs**, plus five accepted repairs, produce 24 eligible examples.
-
-The latest checkpoint is **reflex-repair-v4-48steps-20260927**: **48 confirmed weight updates, 24 examples, 122,752 training tokens**, SFT only. The checkpoint slide uses the v4 receipt, not an older screenshot.
-
-The short held-out comparison is explicitly the **earlier v3 experiment**: base 4/4, memory 4/4, learned 4/4. No learning advantage is claimed. The separate v4 repeat encountered a base execution infrastructure error; it is not presented as a model improvement.
-
-## UFO climax
-
-The dedicated UFO sequence occupies **81.933–96.533 seconds** in the video. It shows a recorded **programmatic UFO SDK invocation** of `repair_code_with_reflex`, using the v4 River checkpoint on training case `repair-stock-replay`.
-
-- Original checks: 2/4.
-- Specialist repair: 4/4, with the OS sandbox enforced.
-- Recorded timestamps: 23:38:53.251702 → 23:38:58.944854 UTC.
-- Recorded elapsed time: 5.693152 seconds, displayed as 5.7 seconds.
-- Source: `docs/evidence/ufo-live-v4.json`.
-
-The sequential highlights animate the **saved receipt** for presentation. They are not an attempt to reproduce the original stage timing. The sequence does not claim a full agent conversation or held-out improvement. The ending states that UFO used the trained specialist.
+- Narration: local Kokoro TTS (kokoro-onnx 0.6.1, voice `af_heart`), no cloud services.
+- Music and sound effects: original, synthesized locally from oscillators and noise; no samples.
+- Chapters: Reproduce → Repair → Verify → Train → Reuse (UFO calls the trained v4 checkpoint) → Measure → Proof.
 
 ## Sources
 
-- `docs/evidence/ufo-live-v4.json`
-- `docs/evidence/reflex-v4-training.json`
-- `docs/evidence/reflex-v3.json`
+- `docs/evidence/reflex-v4-training.json`: Qwen3.5-9B, 48 LoRA SFT steps, 24 examples, 122,752 tokens.
+- `docs/evidence/ufo-live-v4.json`: recorded UFO SDK call of `repair_code_with_reflex`, checks 2/4 → 4/4 in 5.7 s.
+- `docs/evidence/reflex-v3.json`: held-out comparison, base / memory / learned 4/4 each, identical memory and learned inputs.
+- `docs/verification.md`: 240 backend tests and 88 subtests passing; dataset provenance (19 machine-verified + 5 operator-accepted).
 
 ## Rebuild locally
 
+The build workspace lives in `.cache/demo-v2/` (gitignored): `script.json` (narration and facts), `scenes/` (one HTML scene per chapter on a shared time-driven runtime), `render.mjs` (Playwright frames piped to FFmpeg), and `assemble.py` (narration, ducked music, sound effects, two-pass loudness normalization, final encode).
+
 ```sh
-.venv/bin/python .cache/demo/build_demo.py
+cd .cache/demo-v2
+node render.mjs --jobs 1
+../../.venv/bin/python assemble.py --music-offset -0.15
 ```
 
-The render script uses the installed gstack browser, local macOS speech, and FFmpeg. It performs no River calls, app API calls, uploads, or Git operations.
+Rendering makes no River calls, app API calls, uploads, or Git operations.

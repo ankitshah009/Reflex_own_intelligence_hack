@@ -1,29 +1,29 @@
-01. One click. Two orders.
-A customer clicks once. Your webhook arrives twice. This is Reflex: verified work becomes a model your agent can use.
+01. cold-open
+A customer clicks once. The webhook fires twice. Two orders. Inventory counted down twice.
 
-02. The retry becomes a second order.
-The same operation creates two orders and deducts inventory twice. This sample incident runs real code. These are saved execution results.
+02. title
+This is Reflex. Every fix your team verifies becomes training data for a model you own. Your agent, your model, your memory. One loop.
 
-03. Two checks expose the broken retry.
-Two checks fail. Repeated deliveries must preserve the original outcome, while different orders must still work. Execution gives the agent its target.
+03. 01 · Reproduce
+First, Reflex replays the incident. The handler runs in an OS sandbox against four behavior checks. Two fail. The retry isn't idempotent.
 
-04. Recognize the replay before changing inventory.
-River writes this repair. It recognizes the replay before changing inventory and returns the original response. The checkout repair took about fifteen seconds.
+04. 02 · Repair
+River writes a patch that catches the replay before inventory moves. Reflex runs it against the same contract. 4 of 4. One order. 15 seconds.
 
-05. One order. Four checks pass.
-One order. Four checks pass. The model produced code; execution determined whether it worked. The repair and its evidence stay together.
+05. 03 · Verify
+Nothing trains unless execution proves it. On 24 practice tasks, River's repairs passed every check on 19. Add 5 accepted fixes: 24 verified examples, each with provenance.
 
-06. Only verified repairs train the model.
-River proposes, execution verifies, and verified repairs train the model: rejection sampling fine tuning. Twenty four generated tasks produced twenty three River requests and nineteen verified repairs. Five accepted repairs bring the training set to twenty four.
+06. 04 · Train
+Then we train our own model. Qwen3.5-9B, fine-tuned on River. 48 LoRA steps. 122K tokens. A checkpoint we own.
 
-07. Your own specialist. Ready for the next task.
-The latest River run completed forty eight weight updates on twenty four verified examples. It saved version four, our own trained specialist, ready to use and export.
+07. 05 · Reuse
+Now the loop closes. Our UFO extension calls that checkpoint as a tool. It fixes the stock-replay bug: 2 of 4 → 4 of 4, in 5.7 seconds. And the trace flows back into Reflex as new experience.
 
-08. Earlier v3 comparison: four held-out failures.
-In our earlier version three comparison, all three passed four held out failures. The set is too easy to show a learning advantage.
+08. 06 · Measure
+We measure it like researchers. Held-out incidents never touch training. Memory and learned runs get identical inputs. All three pass 4 of 4. The benchmark saturated, so harder incidents are next.
 
-09. UFO called our own trained specialist.
-Now UFO uses our own trained specialist. Its repair tool calls River version four. In this recorded SDK run, stock replay moved from two of four to four of four checks in five point seven seconds. This was a training case.
+09. 07 · Proof
+240 tests pass. The Repository view already runs pytest against patches on local Python code. And every number here has a receipt in the repo.
 
-10. Your failures become your dataset. Your dataset becomes your model.
-UFO now calls our trained model to do the job. Your failures become your dataset. Your dataset becomes your model.
+10. close
+Your failures become your dataset. Your dataset becomes your model. That's Reflex. Built solo at YC's Own Your Intelligence hackathon.

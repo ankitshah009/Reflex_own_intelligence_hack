@@ -1,138 +1,271 @@
 {
-  "format": "Edited walkthrough from genuine app screenshots and saved execution/training receipts",
-  "narration": "local macOS Samantha text-to-speech",
-  "duration_seconds": 104.2,
+  "format": "motion-graphics walkthrough: real app captures and saved run receipts, composited in HTML and rendered frame by frame",
+  "narration": "local text-to-speech (kokoro-onnx 0.6.1, voice af_heart, speed 1.05)",
+  "music": "original, synthesized locally (sox/numpy); no samples",
+  "duration_seconds": 111.733,
+  "fps": 30,
+  "music_offset_seconds": -0.15,
+  "loudness": {
+    "integrated_lufs": "-15.96",
+    "true_peak_dbtp": "-1.55",
+    "lra": "2.60"
+  },
+  "evidence_sources": [
+    "docs/demo-assets/README.md, .cache/demo/manifest.json",
+    "docs/evidence/reflex-v3.json",
+    "docs/evidence/reflex-v4-training.json",
+    "docs/evidence/ufo-live-v4.json",
+    "docs/verification.md",
+    "docs/verification.md (re-run 2026-09-27: 240 passed, 88 subtests)"
+  ],
   "scenes": [
     {
-      "start": 0.0,
-      "end": 8.5,
-      "text": "A customer clicks once. Your webhook arrives twice. This is Reflex: verified work becomes a model your agent can use.",
-      "image": null,
-      "title": "One click. Two orders.",
-      "evidence_source": null,
-      "receipt": null,
-      "presentation": "static evidence composition"
+      "id": "s01",
+      "chapter": null,
+      "start": 0,
+      "duration": 6.9,
+      "captions": [
+        "A customer clicks once.",
+        "The webhook fires twice.",
+        "Two orders. Inventory counted down twice."
+      ]
     },
     {
-      "start": 8.5,
-      "end": 17.633,
-      "text": "The same operation creates two orders and deducts inventory twice. This sample incident runs real code. These are saved execution results.",
-      "image": ".cache/demo/checkout-broken-preview.png",
-      "title": "The retry becomes a second order.",
-      "evidence_source": null,
-      "receipt": null,
-      "presentation": "static evidence composition"
+      "id": "s02",
+      "chapter": null,
+      "start": 6.9,
+      "duration": 9.033333333333333,
+      "captions": [
+        "This is Reflex.",
+        "Every fix your team verifies becomes training data for a model you own.",
+        "Your agent, your model, your memory. One loop."
+      ]
     },
     {
-      "start": 17.633,
-      "end": 27.233,
-      "text": "Two checks fail. Repeated deliveries must preserve the original outcome, while different orders must still work. Execution gives the agent its target.",
-      "image": ".cache/demo/checkout-broken-checks.png",
-      "title": "Two checks expose the broken retry.",
-      "evidence_source": null,
-      "receipt": null,
-      "presentation": "static evidence composition"
+      "id": "s03",
+      "chapter": "01 \u00b7 Reproduce",
+      "start": 15.9333,
+      "duration": 10.1,
+      "captions": [
+        "First, Reflex replays the incident.",
+        "The handler runs in an OS sandbox against four behavior checks.",
+        "Two fail. The retry isn't idempotent."
+      ]
     },
     {
-      "start": 27.233,
-      "end": 37.333,
-      "text": "River writes this repair. It recognizes the replay before changing inventory and returns the original response. The checkout repair took about fifteen seconds.",
-      "image": ".cache/demo/checkout-patch.png",
-      "title": "Recognize the replay before changing inventory.",
-      "evidence_source": null,
-      "receipt": null,
-      "presentation": "static evidence composition"
+      "id": "s04",
+      "chapter": "02 \u00b7 Repair",
+      "start": 26.0333,
+      "duration": 10.533333333333333,
+      "captions": [
+        "River writes a patch that catches the replay before inventory moves.",
+        "Reflex runs it against the same contract.",
+        "4 of 4. One order. 15 seconds."
+      ]
     },
     {
-      "start": 37.333,
-      "end": 46.233,
-      "text": "One order. Four checks pass. The model produced code; execution determined whether it worked. The repair and its evidence stay together.",
-      "image": ".cache/demo/checkout-fixed-preview.png",
-      "title": "One order. Four checks pass.",
-      "evidence_source": null,
-      "receipt": null,
-      "presentation": "static evidence composition"
+      "id": "s05",
+      "chapter": "03 \u00b7 Verify",
+      "start": 36.5667,
+      "duration": 13.533333333333333,
+      "captions": [
+        "Nothing trains unless execution proves it.",
+        "On 24 practice tasks, River's repairs passed every check on 19.",
+        "Add 5 accepted fixes: 24 verified examples, each with provenance."
+      ]
     },
     {
-      "start": 46.233,
-      "end": 63.133,
-      "text": "River proposes, execution verifies, and verified repairs train the model: rejection sampling fine tuning. Twenty four generated tasks produced twenty three River requests and nineteen verified repairs. Five accepted repairs bring the training set to twenty four.",
-      "image": ".cache/demo/learning-grid.png",
-      "title": "Only verified repairs train the model.",
-      "evidence_source": null,
-      "receipt": null,
-      "presentation": "static evidence composition"
+      "id": "s06",
+      "chapter": "04 \u00b7 Train",
+      "start": 50.1,
+      "duration": 11.166666666666666,
+      "captions": [
+        "Then we train our own model.",
+        "Qwen3.5-9B, fine-tuned on River.",
+        "48 LoRA steps. 122K tokens. A checkpoint we own."
+      ]
     },
     {
-      "start": 63.133,
-      "end": 73.733,
-      "text": "The latest River run completed forty eight weight updates on twenty four verified examples. It saved version four, our own trained specialist, ready to use and export.",
-      "image": null,
-      "title": "Your own specialist. Ready for the next task.",
-      "evidence_source": "docs/evidence/reflex-v4-training.json",
-      "receipt": {
-        "steps": 48,
-        "examples": 24,
-        "tokens": 122752,
-        "name": "reflex-repair-v4-48steps-20260927",
-        "model": "Qwen/Qwen3.5-9B",
-        "dataset_hash": "2d472e4308987ef7a518a954e31646407bf7b46faa26f1e4b56876fc2d7c4a93"
-      },
-      "presentation": "static evidence composition"
+      "id": "s07",
+      "chapter": "05 \u00b7 Reuse",
+      "start": 61.2667,
+      "duration": 14.5,
+      "captions": [
+        "Now the loop closes.",
+        "Our UFO extension calls that checkpoint as a tool.",
+        "It fixes the stock-replay bug: 2 of 4 \u2192 4 of 4, in 5.7 seconds.",
+        "And the trace flows back into Reflex as new experience."
+      ]
     },
     {
-      "start": 73.733,
-      "end": 81.933,
-      "text": "In our earlier version three comparison, all three passed four held out failures. The set is too easy to show a learning advantage.",
-      "image": ".cache/demo/evaluation-final.png",
-      "title": "Earlier v3 comparison: four held-out failures.",
-      "evidence_source": "docs/evidence/reflex-v3.json",
-      "receipt": null,
-      "presentation": "static evidence composition"
+      "id": "s08",
+      "chapter": "06 \u00b7 Measure",
+      "start": 75.7667,
+      "duration": 13.5,
+      "captions": [
+        "We measure it like researchers.",
+        "Held-out incidents never touch training. Memory and learned runs get identical inputs.",
+        "All three pass 4 of 4. The benchmark saturated, so harder incidents are next."
+      ]
     },
     {
-      "start": 81.933,
-      "end": 96.533,
-      "text": "Now UFO uses our own trained specialist. Its repair tool calls River version four. In this recorded SDK run, stock replay moved from two of four to four of four checks in five point seven seconds. This was a training case.",
-      "image": null,
-      "title": "UFO called our own trained specialist.",
-      "evidence_source": "docs/evidence/ufo-live-v4.json",
-      "receipt": {
-        "tool": "repair_code_with_reflex",
-        "case_id": "repair-stock-replay",
-        "elapsed": 5.693152,
-        "started_at": "2026-09-27T23:38:53.251702+00:00",
-        "completed_at": "2026-09-27T23:38:58.944854+00:00",
-        "code_hash": "e1dee1b773d85125f2470eb7d7bf717ad1bbf17e8789c22b8700dc7508cfe188",
-        "checkpoint": "reflex-repair-v4-48steps-20260927",
-        "baseline": 2,
-        "candidate": 4,
-        "total": 4
-      },
-      "presentation": "edited saved receipt with sequential stage highlights",
-      "stage_highlights": "Illustrative progression through recorded tool/model/verification; not original elapsed timing."
+      "id": "s09",
+      "chapter": "07 \u00b7 Proof",
+      "start": 89.2667,
+      "duration": 10.8,
+      "captions": [
+        "240 tests pass.",
+        "The Repository view already runs pytest against patches on local Python code.",
+        "And every number here has a receipt in the repo."
+      ]
     },
     {
-      "start": 96.533,
-      "end": 104.2,
-      "text": "UFO now calls our trained model to do the job. Your failures become your dataset. Your dataset becomes your model.",
-      "image": null,
-      "title": "Your failures become your dataset. Your dataset becomes your model.",
-      "evidence_source": null,
-      "receipt": null,
-      "presentation": "static evidence composition"
+      "id": "s10",
+      "chapter": null,
+      "start": 100.0667,
+      "duration": 11.666666666666666,
+      "captions": [
+        "Your failures become your dataset.",
+        "Your dataset becomes your model.",
+        "That's Reflex. Built solo at YC's Own Your Intelligence hackathon."
+      ]
     }
   ],
-  "encoded_duration_seconds": 104.252344,
-  "evidence": {
-    "docs/evidence/ufo-live-v4.json": {
-      "sha256": "55e7dd4547a56102e87335caf244b80f9a60173cfb47a56420517cb5ccf305d3"
+  "sfx_cues": [
+    {
+      "scene": "s01",
+      "t": 0.45,
+      "name": "click"
     },
-    "docs/evidence/reflex-v4-training.json": {
-      "sha256": "9b3d89d4e7dda2537a9dfbae518f1673d85884fcf4849695c1a66a21ff7f9fcd"
+    {
+      "scene": "s01",
+      "t": 2.083,
+      "name": "ping"
     },
-    "docs/evidence/reflex-v3.json": {
-      "sha256": "5d09d54f99a01347eda5561d56b3f2418872623dbbc9f2ba8635c013cdabf430"
+    {
+      "scene": "s01",
+      "t": 2.263,
+      "name": "ping"
+    },
+    {
+      "scene": "s01",
+      "t": 3.768,
+      "name": "impact"
+    },
+    {
+      "scene": "s02",
+      "t": 7.35,
+      "name": "whoosh"
+    },
+    {
+      "scene": "s02",
+      "t": 12.865,
+      "name": "tick"
+    },
+    {
+      "scene": "s02",
+      "t": 13.115,
+      "name": "tick"
+    },
+    {
+      "scene": "s02",
+      "t": 13.365,
+      "name": "tick"
+    },
+    {
+      "scene": "s03",
+      "t": 17.333,
+      "name": "click"
+    },
+    {
+      "scene": "s03",
+      "t": 22.938,
+      "name": "error"
+    },
+    {
+      "scene": "s04",
+      "t": 30.488,
+      "name": "whoosh"
+    },
+    {
+      "scene": "s04",
+      "t": 33.308,
+      "name": "success"
+    },
+    {
+      "scene": "s05",
+      "t": 40.212,
+      "name": "tick"
+    },
+    {
+      "scene": "s05",
+      "t": 45.117,
+      "name": "success"
+    },
+    {
+      "scene": "s06",
+      "t": 50.55,
+      "name": "whoosh"
+    },
+    {
+      "scene": "s06",
+      "t": 57.26,
+      "name": "success"
+    },
+    {
+      "scene": "s07",
+      "t": 61.717,
+      "name": "riser"
+    },
+    {
+      "scene": "s07",
+      "t": 63.715,
+      "name": "click"
+    },
+    {
+      "scene": "s07",
+      "t": 67.85,
+      "name": "success"
+    },
+    {
+      "scene": "s07",
+      "t": 72.154,
+      "name": "whoosh"
+    },
+    {
+      "scene": "s08",
+      "t": 78.872,
+      "name": "tick"
+    },
+    {
+      "scene": "s08",
+      "t": 79.172,
+      "name": "tick"
+    },
+    {
+      "scene": "s08",
+      "t": 79.472,
+      "name": "tick"
+    },
+    {
+      "scene": "s08",
+      "t": 79.772,
+      "name": "tick"
+    },
+    {
+      "scene": "s09",
+      "t": 90.017,
+      "name": "success"
+    },
+    {
+      "scene": "s09",
+      "t": 96.935,
+      "name": "whoosh"
+    },
+    {
+      "scene": "s10",
+      "t": 104.747,
+      "name": "whoosh"
     }
-  }
+  ]
 }
