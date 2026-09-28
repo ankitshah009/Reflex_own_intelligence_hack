@@ -20,6 +20,55 @@ The [recorded v3 evidence](docs/evidence/reflex-v3.json) contains the saved trai
 
 This repository implements the workflow with real provider adapters. It never substitutes a fabricated review, training run, checkpoint, or accuracy score when credentials are unavailable.
 
+## How it works
+
+```mermaid
+---
+config:
+  flowchart:
+    diagramPadding: 20
+    wrappingWidth: 320
+---
+flowchart TB
+    subgraph S1["1 · Collect: repairs are executed, not judged"]
+        direction LR
+        R["<b>Reproduce</b><br/>replay the failing events<br/>against the real handler"]
+        P["<b>Repair</b><br/>River writes a complete<br/>handler, or you edit it"]
+        V["<b>Verify</b><br/>behavioral checks run<br/>in the macOS sandbox"]
+        R --> P --> V
+    end
+    subgraph S2["2 · Learn: only verified repairs become data"]
+        direction LR
+        A["<b>Accept</b><br/>operator approval or<br/>curriculum verification"]
+        F["<b>Freeze</b><br/>immutable SHA-256<br/>training snapshot"]
+        T["<b>Train</b><br/>River LoRA SFT<br/>on Qwen3.5-9B"]
+        A --> F --> T
+    end
+    subgraph S3["3 · Reuse: the specialist handles the next failure, and its work re-enters step 1"]
+        direction LR
+        C[("<b>Checkpoint</b><br/>river:// adapter<br/>tied to its dataset")]
+        U["<b>UFO agent</b><br/>calls the specialist<br/>on the next failure"]
+        E["<b>Held-out test</b><br/>base vs memory<br/>vs learned"]
+        C --> U
+        C --> E
+    end
+    S1 --> S2 --> S3
+
+    classDef reflex fill:#0969da,fill-opacity:0.14,stroke:#0969da,stroke-width:1.5px
+    classDef data fill:#1a7f37,fill-opacity:0.14,stroke:#1a7f37,stroke-width:1.5px
+    classDef river fill:#bc4c00,fill-opacity:0.14,stroke:#bc4c00,stroke-width:1.5px
+    classDef ufo fill:#8250df,fill-opacity:0.14,stroke:#8250df,stroke-width:1.5px
+    class R,P,V,E reflex
+    class A,F data
+    class T,C river
+    class U ufo
+    style S1 fill:#0969da,fill-opacity:0.04,stroke:#0969da,stroke-dasharray:5 4
+    style S2 fill:#1a7f37,fill-opacity:0.04,stroke:#1a7f37,stroke-dasharray:5 4
+    style S3 fill:#bc4c00,fill-opacity:0.04,stroke:#bc4c00,stroke-dasharray:5 4
+```
+
+The gates between stages are enforced in code. A repair becomes training data only after its exact source passes executed checks. Training snapshots are immutable and addressed by SHA-256, and held-out handlers are rejected from training by AST fingerprint. [Architecture](#architecture) shows each part in detail.
+
 ## Who would use it
 
 The initial buyer hypothesis is an engineering team maintaining checkout,
@@ -92,20 +141,339 @@ River receives the approved training examples and inference context. Learned che
 
 ## Architecture
 
+Color key: blue is Reflex, purple is UFO, orange is River, green is verified data, red is an isolation or safety boundary, and gray is a person or input.
+
+### System overview
+
 ```mermaid
-flowchart LR
-    U[UFO tool and turn hooks] --> A[Reflex API]
-    UI[Repair and review workspaces] --> A
-    A --> DB[(SQLite experience ledger)]
-    DB --> D[Confirmed training snapshot]
-    D --> R[River training]
-    R --> C[Saved checkpoint]
-    C --> U
-    C --> E[Held-out evaluation]
-    DB --> E
+---
+config:
+  flowchart:
+    diagramPadding: 20
+    wrappingWidth: 320
+    nodeSpacing: 40
+    rankSpacing: 46
+---
+flowchart TB
+    OP["<b>Operator</b><br/>React + Vite workbench<br/>REST + live SSE events"]
+    subgraph UFO["UFO runtime · self-hosted ufo-core"]
+        TOOLS["<b>Specialist tools</b><br/>repair_code_with_reflex<br/>review_code_with_reflex"]
+        HOOKS["<b>Lifecycle hooks</b><br/>prompt · tool result · stop"]
+    end
+    subgraph API["Reflex API · FastAPI on 127.0.0.1:8000"]
+        GUARD["<b>Local boundary</b><br/>loopback + origin allowlist<br/>1 MB cap · UFO bearer token"]
+        JOBS["<b>Job runner</b><br/>one active run · durable events<br/>SSE replay · no auto-retry"]
+        ENG["<b>Engines</b><br/>repair · repository · curriculum<br/>evaluation · leakage guards"]
+        ADAPT["<b>River adapter</b><br/>local tokenizer · sampling<br/>LoRA SFT · input-token hashes"]
+        GUARD --> JOBS --> ENG --> ADAPT
+    end
+    SB["<b>Seatbelt sandbox</b><br/>handler worker<br/>pytest snapshot runner"]
+    DB[("<b>SQLite ledger</b><br/>WAL · experiences · jobs<br/>immutable snapshots")]
+    subgraph CLOUD["Cloud"]
+        RIVER["<b>River</b><br/>Qwen3.5-9B sampling<br/>LoRA SFT"]
+        CKPT[("<b>river:// checkpoints</b><br/>immutable LoRA adapters")]
+        HF["<b>Hugging Face Hub</b><br/>tokenizer files only"]
+    end
+
+    OP --> GUARD
+    TOOLS -->|"Idempotency-Key"| GUARD
+    HOOKS -->|"trace import"| GUARD
+    JOBS <-->|"transactions"| DB
+    ENG -->|"JSON over pipes"| SB
+    ADAPT -->|"sample (base or checkpoint) · train"| RIVER
+    RIVER -->|"save_weights"| CKPT
+    ADAPT -.->|"tokenizer, cached"| HF
+
+    classDef human fill:#6e7781,fill-opacity:0.12,stroke:#6e7781,stroke-width:1.5px
+    classDef ufo fill:#8250df,fill-opacity:0.14,stroke:#8250df,stroke-width:1.5px
+    classDef reflex fill:#0969da,fill-opacity:0.14,stroke:#0969da,stroke-width:1.5px
+    classDef guard fill:#cf222e,fill-opacity:0.12,stroke:#cf222e,stroke-width:1.5px
+    classDef data fill:#1a7f37,fill-opacity:0.14,stroke:#1a7f37,stroke-width:1.5px
+    classDef river fill:#bc4c00,fill-opacity:0.14,stroke:#bc4c00,stroke-width:1.5px
+    class OP human
+    class TOOLS,HOOKS ufo
+    class GUARD,SB guard
+    class JOBS,ENG,ADAPT reflex
+    class DB data
+    class RIVER,CKPT,HF river
+    style UFO fill:#8250df,fill-opacity:0.05,stroke:#8250df,stroke-dasharray:5 4
+    style API fill:#0969da,fill-opacity:0.05,stroke:#0969da
+    style CLOUD fill:#bc4c00,fill-opacity:0.04,stroke:#bc4c00,stroke-dasharray:5 4
 ```
 
 The frontend uses React, TypeScript, and Vite. The backend uses FastAPI and the pinned River Python client. UFO is a separately installable extension pinned to a verified upstream source revision. Review requests do not execute patches. Repair requests execute restricted Python handlers in a mandatory macOS sandbox with CPU, wall-time, output, and memory observation limits; expected results stay in the parent process. If UFO independently executes repository commands, its carrier determines that execution boundary.
+
+### Anatomy of a repair run
+
+```mermaid
+---
+config:
+  sequence:
+    mirrorActors: false
+    width: 120
+    actorMargin: 40
+    diagramMarginX: 20
+---
+sequenceDiagram
+    autonumber
+    actor OP as Operator
+    participant API as Reflex API
+    participant SB as Sandbox
+    participant RV as River
+    participant DB as Ledger
+
+    OP->>API: POST /api/repairs/run
+    API->>DB: queue job (409 if one is active)
+    API-->>OP: 202 + job_id, then SSE events
+    rect rgba(207, 34, 46, 0.08)
+        Note over API,SB: Reproduce
+        API->>SB: run the original handler
+        SB-->>API: baseline, e.g. 2/4 checks
+    end
+    rect rgba(188, 76, 0, 0.08)
+        Note over API,RV: Repair
+        API->>RV: sample at T=0, seed 42
+        RV-->>API: full handler + input-token hash
+    end
+    rect rgba(26, 127, 55, 0.08)
+        Note over API,DB: Verify
+        API->>SB: run the candidate, same checks
+        SB-->>API: e.g. 4/4, bound to code SHA-256
+        API->>DB: save diff, reports, hashes
+    end
+    rect rgba(9, 105, 218, 0.08)
+        Note over OP,DB: Accept
+        OP->>API: approve (after review or edits)
+        API->>SB: re-run the exact code
+        SB-->>API: passed
+        API->>DB: approval: training-eligible
+    end
+```
+
+Every step is appended to the job's durable event log and streamed over SSE. Each execution report carries the SHA-256 of the exact code that ran, so an edited patch loses its verification, and acceptance re-executes the approved code on the server.
+
+### How UFO calls the specialist
+
+```mermaid
+---
+config:
+  sequence:
+    mirrorActors: false
+    width: 120
+    actorMargin: 40
+    diagramMarginX: 20
+---
+sequenceDiagram
+    autonumber
+    actor H as Human
+    box rgba(130, 80, 223, 0.08) UFO runtime
+        participant AG as UFO agent
+        participant EXT as Reflex extension
+    end
+    box rgba(9, 105, 218, 0.08) Reflex
+        participant API as Reflex API
+    end
+
+    H->>AG: repair case repair-stock-replay
+    AG-)EXT: hook: user_prompt_submit
+    EXT->>EXT: buffer event in UFO store
+    AG->>EXT: repair_code_with_reflex(case_id)
+    EXT->>EXT: reserve turn (compare-and-set)
+    EXT->>API: POST /api/repairer
+    Note over API: bearer, runtime UUIDs, SDK pin<br/>auto mode: latest checkpoint<br/>sandbox, River, sandbox
+    API-->>EXT: experience_id, code, diff, report
+    EXT-->>AG: ToolResult
+    AG-)EXT: hook: post_tool_use
+    AG->>H: final answer
+    AG-)EXT: hook: stop
+    EXT->>API: POST /api/repairs/import
+    Note over API: identity must match saved repair<br/>observable events only
+    EXT->>EXT: keep export receipt
+    Note over H,API: Approval stays human: only the Reflex UI accepts a repair for training
+```
+
+Each UFO turn gets one specialist request, reserved with compare-and-set before any HTTP call. A stable `ufo-repair:<workspace>:<turn>` idempotency key means a retry returns the saved result instead of triggering a second model call. Only observable events are imported, never model reasoning or approval labels.
+
+### Execution sandbox
+
+```mermaid
+---
+config:
+  flowchart:
+    diagramPadding: 20
+    wrappingWidth: 320
+---
+flowchart TB
+    subgraph PARENT["Reflex API process · trusted · expected outputs stay here"]
+        CODE["<b>Candidate handler.py</b><br/>from River or the developer"]
+        GATE["<b>1 · Static gate</b><br/>AST allowlist · one apply(state, event)<br/>no imports, dunders, or reflection"]
+        WATCH["<b>5 · Watchdog</b><br/>3 s wall clock · 256 KiB output<br/>256 MiB RSS, sampled every 100 ms"]
+        JUDGE["<b>6 · Judge</b><br/>state + responses vs expected<br/>report bound to code SHA-256"]
+        CODE --> GATE
+        WATCH --> JUDGE
+    end
+    subgraph SPAWN["2 · Fresh interpreter · posix_spawn · inherited FDs closed"]
+        subgraph SEAT["3 · Seatbelt · no network, file writes, fork, exec, or signals"]
+            subgraph LIMITS["4 · rlimits · CPU 2 s · file size 0 · 32 FDs"]
+                WORKER["<b>apply(state, event)</b><br/>allowlisted builtins<br/>JSON in, JSON out"]
+                PROBE["<b>Self-check probe</b><br/>host read, write, network, signal<br/>must be denied, or execution stays off"]
+                WORKER ~~~ PROBE
+            end
+        end
+    end
+
+    GATE -->|"source + JSON inputs"| WORKER
+    WORKER -->|"JSON results"| WATCH
+
+    classDef human fill:#6e7781,fill-opacity:0.12,stroke:#6e7781,stroke-width:1.5px
+    classDef reflex fill:#0969da,fill-opacity:0.14,stroke:#0969da,stroke-width:1.5px
+    classDef guard fill:#cf222e,fill-opacity:0.12,stroke:#cf222e,stroke-width:1.5px
+    class CODE human
+    class GATE,WATCH,JUDGE reflex
+    class WORKER,PROBE guard
+    style PARENT fill:#0969da,fill-opacity:0.04,stroke:#0969da
+    style SPAWN fill:#cf222e,fill-opacity:0.03,stroke:#cf222e,stroke-dasharray:5 4
+    style SEAT fill:#cf222e,fill-opacity:0.05,stroke:#cf222e
+    style LIMITS fill:#cf222e,fill-opacity:0.07,stroke:#cf222e,stroke-dasharray:2 3
+```
+
+Candidate code runs in a separate interpreter under macOS Seatbelt, and the expected outputs never enter it. If the self-check probe cannot prove isolation, execution stays disabled; there is no unsandboxed fallback. Repository tests run under the same kind of boundary: a read-only snapshot, a disposable scratch directory, 45 seconds, and 512 MiB.
+
+### Controlled comparison
+
+```mermaid
+---
+config:
+  flowchart:
+    diagramPadding: 20
+    wrappingWidth: 320
+---
+flowchart TB
+    HO["<b>Held-out incidents</b><br/>source fingerprints never<br/>appear in training"]
+    CK[("<b>Checkpoint record</b><br/>river:// adapter · frozen<br/>dataset and memory")]
+    B["<b>Base</b><br/>prompt: case<br/>weights: Qwen3.5-9B"]
+    M["<b>Memory</b><br/>prompt: case + memory<br/>weights: Qwen3.5-9B"]
+    L["<b>Learned</b><br/>prompt: case + memory<br/>weights: + LoRA adapter"]
+    G{{"<b>Identity guard</b><br/>memory and learned prompts and<br/>input tokens must hash identically"}}
+    X["<b>Sandbox execution</b><br/>malformed output counts as failure"]
+    ART[("<b>Evaluation artifact</b><br/>eval-set · dataset · model-input hashes")]
+
+    HO --> B
+    HO --> M
+    HO --> L
+    CK -.-> M
+    CK -.-> L
+    M --> G
+    L --> G
+    B --> X
+    G --> X
+    X --> ART
+
+    classDef human fill:#6e7781,fill-opacity:0.12,stroke:#6e7781,stroke-width:1.5px
+    classDef reflex fill:#0969da,fill-opacity:0.14,stroke:#0969da,stroke-width:1.5px
+    classDef guard fill:#cf222e,fill-opacity:0.12,stroke:#cf222e,stroke-width:1.5px
+    classDef data fill:#1a7f37,fill-opacity:0.14,stroke:#1a7f37,stroke-width:1.5px
+    classDef river fill:#bc4c00,fill-opacity:0.14,stroke:#bc4c00,stroke-width:1.5px
+    class HO human
+    class CK,L river
+    class B,M reflex
+    class G,X guard
+    class ART data
+```
+
+Memory and learned receive token-identical inputs, so any difference between them comes from the weights. The recorded v3 run scored base 4/4, memory 4/4, and learned 4/4. The benchmark saturated, so no gain is claimed.
+
+### Data lineage
+
+```mermaid
+erDiagram
+    REPAIR_CASE ||--o{ REPAIR : "attempted as"
+    JOB ||--o{ EVENT : "streams"
+    JOB ||--o{ REPAIR : "produces"
+    REPAIR }o--o{ DATASET : "frozen into"
+    DATASET ||--o{ REPAIR_CHECKPOINT : "trains"
+    REPAIR_CHECKPOINT ||--o{ REPAIR_EVALUATION : "measured by"
+
+    REPAIR_CASE {
+        string id PK
+        text source "original handler.py"
+        json checks "expected state and responses"
+    }
+    REPAIR {
+        uuid id PK
+        string case_id FK
+        string condition "base, memory, or learned"
+        sha256 prompt_hash
+        sha256 input_token_hash
+        json accepted_report "bound to code SHA-256"
+        json human_feedback "operator approval"
+        json machine_feedback "curriculum verification"
+        json ufo "runtime UUIDs and SDK commit"
+    }
+    DATASET {
+        sha256 id PK "hash of the examples"
+        json examples "prompt, completion, provenance"
+        text memory "frozen lessons"
+    }
+    REPAIR_CHECKPOINT {
+        uuid id PK
+        string checkpoint "river:// URI"
+        sha256 dataset_hash FK
+        json metrics "steps, losses, tokens"
+    }
+    REPAIR_EVALUATION {
+        uuid id PK
+        uuid checkpoint_id FK
+        sha256 eval_set_hash
+        sha256 model_input_hash
+    }
+    JOB {
+        uuid id PK
+        string kind
+        string status
+    }
+    EVENT {
+        int id PK
+        uuid job_id FK
+        json data
+    }
+
+    classDef work fill:#0969da1f,stroke:#0969da
+    classDef frozen fill:#1a7f371f,stroke:#1a7f37
+    classDef weights fill:#bc4c001f,stroke:#bc4c00
+    classDef ops fill:#6e77811f,stroke:#6e7781
+    class REPAIR_CASE,REPAIR work
+    class DATASET frozen
+    class REPAIR_CHECKPOINT,REPAIR_EVALUATION weights
+    class JOB,EVENT ops
+```
+
+Every checkpoint points to the SHA-256 of the exact examples it was trained on, and dataset snapshots cannot be modified or deleted. The PR-review path mirrors this with experiences, checkpoints, and evaluations.
+
+### Job lifecycle
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> queued: POST starts a run
+    queued --> running
+    running --> completed: result persisted
+    running --> failed: sanitized error persisted
+    running --> interrupted: shutdown or restart
+    queued --> interrupted: restart
+    completed --> [*]
+    failed --> [*]
+    interrupted --> [*]: never auto-retried
+
+    classDef good fill:#1a7f37,fill-opacity:0.16,stroke:#1a7f37
+    classDef bad fill:#cf222e,fill-opacity:0.14,stroke:#cf222e
+    classDef halt fill:#bc4c00,fill-opacity:0.14,stroke:#bc4c00
+    class completed good
+    class failed bad
+    class interrupted halt
+```
+
+One run at a time. A restart marks unfinished jobs as interrupted and never resubmits billable River work.
 
 ## Verify
 
